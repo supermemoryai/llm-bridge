@@ -452,10 +452,6 @@ Our test suite includes:
 - ✅ Edge cases and malformed input
 - ✅ Type safety verification
 
-## 🤝 Contributing
-
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
-
 ## 📄 License
 
 MIT License - see [LICENSE](LICENSE) file for details.
@@ -468,4 +464,4 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ---
 
-**Made with ❤️ by developers who got tired of writing the same translation code over and over again.**
+**Made with ❤️ by [team supermemory](https://supermemory.ai)**
