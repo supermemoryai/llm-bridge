@@ -1,6 +1,6 @@
 {
   "name": "llm-bridge",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "The Universal Translation Layer for Large Language Model APIs",
   "publishConfig": {
     "access": "public"
@@ -10,14 +10,22 @@
   ],
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
-  "exports": {
-    "require": "./dist/index.js",
-    "import": "./dist/index.mjs"
-  },
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.mts",
+        "default": "./dist/index.mjs"
+      },
+      "require": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  },
   "scripts": {
-    "build-fast": "tsup src/index.ts --format cjs,esm",
-    "build": "pnpm run build-fast -- --dts-resolve",
+    "build-fast": "tsup --format cjs,esm --no-dts",
+    "build": "tsup",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage --config vitest.config.mjs",
     "prepublishOnly": "pnpm run build"
