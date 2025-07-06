@@ -253,10 +253,13 @@ export function universalToOpenAI(
       msg.content.length === 1 &&
       msg.content[0]?._original?.provider === "openai"
     ) {
-      // Perfect reconstruction from original
+      // Perfect reconstruction from original - but only if it's valid OpenAI content
       const originalContent = msg.content[0]?._original?.raw
-      if (originalContent) {
+      if (originalContent && isValidOpenAIContent(originalContent)) {
         openaiMessage.content = originalContent as any
+      } else {
+        // Fallback to universal format if original is not valid OpenAI content
+        openaiMessage.content = msg.content[0]?.text || ""
       }
     } else if (msg.content.length === 1 && msg.content[0]?.type === "text") {
       // Simple text message
