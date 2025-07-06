@@ -177,11 +177,29 @@ export function googleToUniversal(body: GeminiBody): UniversalBody<"google"> {
   }
 }
 
+function hasMessagesBeenModified(universal: UniversalBody<"google">): boolean {
+  if (!universal._original?.raw) return true
+  
+  const originalBody = universal._original.raw as GeminiBody
+  const originalMessages = originalBody.contents || []
+  
+  // Check if message count changed
+  if (originalMessages.length !== universal.messages.length) return true
+  
+  // Check if any messages have contextInjection metadata (indicates injection)
+  const hasInjectedMessages = universal.messages.some(m => 
+    m.metadata.contextInjection || 
+    !m.metadata.originalIndex // New messages without originalIndex
+  )
+  
+  return hasInjectedMessages
+}
+
 export function universalToGoogle(
   universal: UniversalBody<"google">,
 ): GeminiBody {
-  // If we have the original, we can reconstruct perfectly
-  if (universal._original?.provider === "google") {
+  // If we have the original and no modifications, we can reconstruct perfectly
+  if (universal._original?.provider === "google" && !hasMessagesBeenModified(universal)) {
     return universal._original.raw as GeminiBody
   }
 

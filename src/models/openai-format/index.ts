@@ -186,11 +186,32 @@ export function openaiToUniversal(body: OpenAIBody): UniversalBody<"openai"> {
   }
 }
 
+function hasMessagesBeenModified(universal: UniversalBody<"openai">): boolean {
+  if (!universal._original?.raw) return true
+  
+  const originalBody = universal._original.raw as OpenAIBody
+  const originalMessages = originalBody.messages || []
+  
+  // Check if message count changed
+  const originalNonSystemCount = originalMessages.filter(m => m.role !== "system").length
+  const currentNonSystemCount = universal.messages.filter(m => m.role !== "system").length
+  
+  if (originalNonSystemCount !== currentNonSystemCount) return true
+  
+  // Check if any messages have contextInjection metadata (indicates injection)
+  const hasInjectedMessages = universal.messages.some(m => 
+    m.metadata.contextInjection || 
+    !m.metadata.originalIndex // New messages without originalIndex
+  )
+  
+  return hasInjectedMessages
+}
+
 export function universalToOpenAI(
   universal: UniversalBody<"openai">,
 ): OpenAIBody {
-  // 🎯 PERFECT RECONSTRUCTION: If we have the original, use it directly
-  if (universal._original?.provider === "openai") {
+  // 🎯 PERFECT RECONSTRUCTION: If we have the original and no modifications, use it directly
+  if (universal._original?.provider === "openai" && !hasMessagesBeenModified(universal)) {
     return universal._original.raw as OpenAIBody
   }
 
