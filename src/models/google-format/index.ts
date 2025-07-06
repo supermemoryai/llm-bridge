@@ -203,11 +203,29 @@ export function universalToGoogle(
     return universal._original.raw as GeminiBody
   }
 
+  // Separate system messages from regular messages
+  const systemMessages = universal.messages.filter(msg => msg.role === "system")
+  const regularMessages = universal.messages.filter(msg => msg.role !== "system")
+
   // Convert universal messages back to Google format
-  const contents = universal.messages.map((msg) => ({
+  const contents = regularMessages.map((msg) => ({
     parts: msg.content.map((content) => {
       if (content._original?.provider === "google") {
-        return content._original.raw
+        // Validate that _original.raw is properly formatted for Google
+        const originalRaw = content._original.raw
+        if (typeof originalRaw === 'string') {
+          throw new Error(
+            `Invalid _original.raw format for Google provider. Expected object with 'text' property, got string: "${originalRaw}". ` +
+            `Remove the _original field and let the library auto-generate it, or use format: { text: "${originalRaw}" }`
+          )
+        }
+        if (typeof originalRaw === 'object' && originalRaw !== null && 'text' in originalRaw) {
+          return originalRaw
+        }
+        // If _original.raw exists but is not valid, throw error
+        throw new Error(
+          `Invalid _original.raw format for Google provider. Expected object with 'text' property, got: ${JSON.stringify(originalRaw)}`
+        )
       }
 
       if (content.type === "text") {
@@ -273,14 +291,33 @@ export function universalToGoogle(
   }
 
   // Add system instruction if present
+  const systemParts: any[] = []
+  
+  // Add system from universal.system field
   if (universal.system) {
     const systemContent =
       typeof universal.system === "string"
         ? universal.system
         : universal.system.content
 
+    systemParts.push({ text: systemContent })
+  }
+  
+  // Add system messages from messages array
+  if (systemMessages.length > 0) {
+    for (const systemMsg of systemMessages) {
+      for (const content of systemMsg.content) {
+        if (content.type === "text") {
+          systemParts.push({ text: content.text })
+        }
+        // Note: Google system instructions only support text content
+      }
+    }
+  }
+  
+  if (systemParts.length > 0) {
     result.systemInstruction = {
-      parts: [{ text: systemContent }],
+      parts: systemParts,
     } as any
   }
 

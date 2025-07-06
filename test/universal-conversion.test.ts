@@ -1,6 +1,7 @@
 import { test, expect, describe } from "vitest"
 import { toUniversal, fromUniversal } from "../src/models"
 import { translateBetweenProviders } from "../src/models/translate"
+import { createSystemMessage, createUserMessage } from "../src/helpers/utils"
 import type {
   OpenAIBody,
   AnthropicBody,
@@ -421,6 +422,259 @@ describe("Universal Format Conversion", () => {
       const converted = fromUniversal("openai", universal)
 
       expect(converted).toEqual(original)
+    })
+
+    test("should convert universal system messages to Google systemInstruction format", () => {
+      const universalBody = {
+        _original: {
+          provider: "google",
+          raw: "",
+        },
+        max_tokens: 4096,
+        messages: [
+          {
+            content: [
+              {
+                _original: {
+                  provider: "google",
+                  raw: "Based on all the messages below, generate a concise summary of the conversation.",
+                },
+                text: "Based on all the messages below, generate a concise summary of the conversation.",
+                type: "text" as const,
+              },
+            ],
+            id: "system_msg_1",
+            metadata: {
+              provider: "google",
+            },
+            role: "system" as const,
+          },
+          {
+            content: [
+              {
+                text: "what do you know about me bro?",
+                type: "text" as const,
+              },
+            ],
+            id: "user_msg_1",
+            metadata: {
+              provider: "google",
+            },
+            role: "user" as const,
+          },
+          {
+            content: [
+              {
+                text: "I know you're curious about your identity and want to be recognized.",
+                type: "text" as const,
+              },
+            ],
+            id: "assistant_msg_1",
+            metadata: {
+              provider: "google",
+            },
+            role: "assistant" as const,
+          },
+        ],
+        model: "gemini-2.0-flash",
+        provider: "google",
+        stream: false,
+        temperature: 0.7,
+      }
+
+      const converted = fromUniversal("google", universalBody as any)
+
+      // System message should be moved to systemInstruction
+      expect(converted.systemInstruction).toBeDefined()
+      expect((converted.systemInstruction as any).parts).toHaveLength(1)
+      expect((converted.systemInstruction as any).parts[0].text).toBe(
+        "Based on all the messages below, generate a concise summary of the conversation."
+      )
+
+      // Contents should only have user and assistant messages
+      expect(converted.contents).toHaveLength(2)
+      expect(converted.contents[0].role).toBe("user")
+      expect(converted.contents[1].role).toBe("model")
+      expect(converted.contents[0].parts[0].text).toBe("what do you know about me bro?")
+      expect(converted.contents[1].parts[0].text).toBe("I know you're curious about your identity and want to be recognized.")
+    })
+
+    test("should handle multimodal system messages in Google format", () => {
+      const universalBody = {
+        _original: {
+          provider: "google",
+          raw: "",
+        },
+        max_tokens: 4096,
+        messages: [
+          {
+            content: [
+              {
+                text: "You are a helpful assistant.",
+                type: "text" as const,
+              },
+              {
+                text: "Additional context.",
+                type: "text" as const,
+              },
+            ],
+            id: "system_msg_1",
+            metadata: {
+              provider: "google",
+            },
+            role: "system" as const,
+          },
+          {
+            content: [
+              {
+                text: "Hello!",
+                type: "text" as const,
+              },
+            ],
+            id: "user_msg_1",
+            metadata: {
+              provider: "google",
+            },
+            role: "user" as const,
+          },
+        ],
+        model: "gemini-2.0-flash",
+        provider: "google",
+        stream: false,
+        temperature: 0.7,
+      }
+
+      const converted = fromUniversal("google", universalBody as any)
+
+      // System message should combine multiple text parts
+      expect(converted.systemInstruction).toBeDefined()
+      expect((converted.systemInstruction as any).parts).toHaveLength(2)
+      expect((converted.systemInstruction as any).parts[0].text).toBe("You are a helpful assistant.")
+      expect((converted.systemInstruction as any).parts[1].text).toBe("Additional context.")
+
+      // Contents should only have user message
+      expect(converted.contents).toHaveLength(1)
+      expect(converted.contents[0].role).toBe("user")
+      expect(converted.contents[0].parts[0].text).toBe("Hello!")
+    })
+
+    test("should combine universal.system and system messages in Google format", () => {
+      const universalBody = {
+        _original: {
+          provider: "google",
+          raw: "",
+        },
+        max_tokens: 4096,
+        system: "You are a helpful assistant.",
+        messages: [
+          {
+            content: [
+              {
+                text: "Additional instruction from message.",
+                type: "text" as const,
+              },
+            ],
+            id: "system_msg_1",
+            metadata: {
+              provider: "google",
+            },
+            role: "system" as const,
+          },
+          {
+            content: [
+              {
+                text: "Hello!",
+                type: "text" as const,
+              },
+            ],
+            id: "user_msg_1",
+            metadata: {
+              provider: "google",
+            },
+            role: "user" as const,
+          },
+        ],
+        model: "gemini-2.0-flash",
+        provider: "google",
+        stream: false,
+        temperature: 0.7,
+      }
+
+      const converted = fromUniversal("google", universalBody as any)
+
+      // System instruction should combine both universal.system and system messages
+      expect(converted.systemInstruction).toBeDefined()
+      expect((converted.systemInstruction as any).parts).toHaveLength(2)
+      expect((converted.systemInstruction as any).parts[0].text).toBe("You are a helpful assistant.")
+      expect((converted.systemInstruction as any).parts[1].text).toBe("Additional instruction from message.")
+
+      // Contents should only have user message
+      expect(converted.contents).toHaveLength(1)
+      expect(converted.contents[0].role).toBe("user")
+    })
+
+    test("should throw error for invalid _original.raw format", () => {
+      const universalBody = {
+        _original: {
+          provider: "google",
+          raw: "",
+        },
+        max_tokens: 4096,
+        messages: [
+          {
+            content: [
+              {
+                _original: {
+                  provider: "google",
+                  raw: "Invalid string format", // This should be an object with text property
+                },
+                text: "Hello",
+                type: "text" as const,
+              },
+            ],
+            id: "user_msg_1",
+            metadata: {
+              provider: "google",
+            },
+            role: "user" as const,
+          },
+        ],
+        model: "gemini-2.0-flash",
+        provider: "google",
+        stream: false,
+        temperature: 0.7,
+      }
+
+      expect(() => fromUniversal("google", universalBody as any)).toThrow(
+        /Invalid _original\.raw format for Google provider\. Expected object with 'text' property, got string/
+      )
+    })
+
+    test("should work with helper functions (no _original needed)", () => {
+      const systemMsg = createSystemMessage("You are a helpful assistant", { provider: "google" })
+      const userMsg = createUserMessage("Hello!", { provider: "google" })
+
+      const universalBody = {
+        _original: {
+          provider: "google",
+          raw: "",
+        },
+        max_tokens: 4096,
+        messages: [systemMsg, userMsg],
+        model: "gemini-2.0-flash",
+        provider: "google",
+        stream: false,
+        temperature: 0.7,
+      }
+
+      const converted = fromUniversal("google", universalBody as any)
+
+      // Should work without throwing errors
+      expect(converted.systemInstruction).toBeDefined()
+      expect((converted.systemInstruction as any).parts[0].text).toBe("You are a helpful assistant")
+      expect(converted.contents).toHaveLength(1)
+      expect(converted.contents[0].role).toBe("user")
+      expect(converted.contents[0].parts[0].text).toBe("Hello!")
     })
   })
 

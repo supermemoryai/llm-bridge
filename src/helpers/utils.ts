@@ -1,7 +1,10 @@
+import { ProviderType } from "../types"
 import {
   UniversalBody,
   UniversalMessage,
   UniversalToolCall,
+  UniversalContent,
+  UniversalRole,
 } from "../types/universal"
 
 export function generateId(): string {
@@ -169,4 +172,73 @@ export function validateUniversalBody(universal: UniversalBody): {
     errors,
     valid: errors.length === 0,
   }
+}
+
+/**
+ * Creates a text content object without requiring manual _original specification
+ */
+export function createTextContent(text: string): UniversalContent {
+  return {
+    type: "text",
+    text,
+  }
+}
+
+/**
+ * Creates a UniversalMessage object without requiring manual _original specification
+ */
+export function createUniversalMessage(
+  role: UniversalRole,
+  content: string | UniversalContent[],
+  options: {
+    id?: string
+    metadata?: Record<string, unknown>
+    provider?: string
+  } = {}
+): UniversalMessage {
+  const { id = generateId(), metadata = {}, provider = "universal" } = options
+  
+  const contentArray = typeof content === 'string' 
+    ? [createTextContent(content)]
+    : content
+
+  return {
+    id,
+    role,
+    content: contentArray,
+    metadata: {
+      provider: provider as ProviderType,
+      ...metadata,
+    },
+  }
+}
+
+/**
+ * Creates a system message
+ */
+export function createSystemMessage(
+  content: string,
+  options: { id?: string; metadata?: Record<string, unknown>; provider?: string } = {}
+): UniversalMessage {
+  return createUniversalMessage("system", content, options)
+}
+
+/**
+ * Creates a user message
+ */
+export function createUserMessage(
+  content: string | UniversalContent[],
+  options: { id?: string; metadata?: Record<string, unknown>; provider?: string } = {}
+): UniversalMessage {
+  return createUniversalMessage("user", content, options)
+}
+
+/**
+ * Creates an assistant message
+ */
+export function createAssistantMessage(
+  content: string | UniversalContent[],
+  options: { id?: string; metadata?: Record<string, unknown>; provider?: string } = {}
+): UniversalMessage {
+  return createUniversalMessage("assistant", content, options)
 }

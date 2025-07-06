@@ -6,7 +6,7 @@
  */
 
 import { toUniversal, fromUniversal, translateBetweenProviders } from '../src'
-
+s
 // Example 1: OpenAI to Universal to Anthropic
 console.log('🔄 Example 1: OpenAI → Universal → Anthropic')
 
