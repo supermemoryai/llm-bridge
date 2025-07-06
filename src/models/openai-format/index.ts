@@ -255,7 +255,7 @@ export function universalToOpenAI(
     ) {
       // Perfect reconstruction from original - but only if it's valid OpenAI content
       const originalContent = msg.content[0]?._original?.raw
-      if (originalContent && isValidOpenAIContent(originalContent)) {
+      if (originalContent) {
         openaiMessage.content = originalContent as any
       } else {
         // Fallback to universal format if original is not valid OpenAI content
