@@ -1,6 +1,6 @@
 import { ObservabilityData } from "../types/observability"
 import { ProviderType } from "../types/providers"
-import { UniversalBody } from "../types/universal"
+import { UniversalBody, UniversalMessage } from "../types/universal"
 
 interface ModelDetails {
   max_input_tokens?: number
@@ -120,10 +120,81 @@ export function countUniversalTokens(universal: UniversalBody): {
   estimatedOutputTokens: number
   multimodalContentCount: number
   toolCallsCount: number
+}
+
+export function countUniversalTokens(messages: UniversalMessage[]): {
+  inputTokens: number
+  multimodalContentCount: number
+  toolCallsCount: number
+}
+
+export function countUniversalTokens(
+  input: UniversalBody | UniversalMessage[]
+): {
+  inputTokens: number
+  estimatedOutputTokens?: number
+  multimodalContentCount: number
+  toolCallsCount: number
 } {
   let inputTokens = 0
   let multimodalContentCount = 0
   let toolCallsCount = 0
+
+  // Handle array of messages
+  if (Array.isArray(input)) {
+    const messages = input
+    
+    // Count message tokens
+    for (const message of messages) {
+      for (const content of message.content) {
+        if (content.type === "text" && content.text) {
+          inputTokens += Math.ceil(content.text.length / 4)
+        }
+
+        // Count multimodal content
+        if (["image", "audio", "video", "document"].includes(content.type)) {
+          multimodalContentCount++
+
+          // Add approximate tokens for multimodal content
+          switch (content.type) {
+            case "image":
+              inputTokens += 85 // GPT-4V approximation
+              break
+            case "audio":
+              inputTokens += 100
+              break
+            case "video":
+              inputTokens += 200
+              break
+            case "document":
+              inputTokens += 500
+              break
+          }
+        }
+
+        // Count tool calls
+        if (content.type === "tool_call") {
+          toolCallsCount++
+          inputTokens += 50 // Approximate overhead for tool calls
+        }
+      }
+
+      // Count tool calls from message-level tool_calls array
+      if (message.tool_calls) {
+        toolCallsCount += message.tool_calls.length
+        inputTokens += message.tool_calls.length * 50
+      }
+    }
+
+    return {
+      inputTokens,
+      multimodalContentCount,
+      toolCallsCount,
+    }
+  }
+
+  // Handle full UniversalBody
+  const universal = input
 
   // Count system prompt tokens
   if (universal.system) {
