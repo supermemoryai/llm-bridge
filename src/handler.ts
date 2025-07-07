@@ -55,10 +55,7 @@ export async function handleUniversalRequest(
   // Make the request to the provider
   const response = await fetch(targetUrl, {
     body: JSON.stringify(translatedBody),
-    headers: {
-      ...headers,
-      "Content-Type": "application/json",
-    },
+    headers,
     method,
   })
 
