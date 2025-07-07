@@ -50,6 +50,8 @@ export async function handleUniversalRequest(
   // Translate back to provider format
   const translatedBody = fromUniversal(provider, editedRequest as any)
 
+  delete headers["Content-Type"]
+
   // Make the request to the provider
   const response = await fetch(targetUrl, {
     body: JSON.stringify(translatedBody),
