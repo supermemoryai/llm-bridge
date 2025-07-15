@@ -272,7 +272,7 @@ describe('Bug Reproduction: Cannot read properties of undefined (reading \'map\'
             }
           }
         ],
-        tool_choice: { type: 'auto' }
+        tool_choice: 'auto'
       }
 
       const result = anthropicToUniversal(complexAnthropicBody as any)
