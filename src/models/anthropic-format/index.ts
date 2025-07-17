@@ -195,19 +195,19 @@ export function anthropicToUniversal(
 
 function hasMessagesBeenModified(universal: UniversalBody<"anthropic">): boolean {
   if (!universal._original?.raw) return true
-  
+
   const originalBody = universal._original.raw as AnthropicBody
   const originalMessages = originalBody.messages || []
-  
+
   // Check if message count changed
   if (originalMessages.length !== universal.messages.length) return true
-  
+
   // Check if any messages have contextInjection metadata (indicates injection)
-  const hasInjectedMessages = universal.messages.some(m => 
-    m.metadata.contextInjection || 
+  const hasInjectedMessages = universal.messages.some(m =>
+    m.metadata.contextInjection ||
     !m.metadata.originalIndex // New messages without originalIndex
   )
-  
+
   return hasInjectedMessages
 }
 
@@ -224,9 +224,17 @@ export function universalToAnthropic(
     const anthropicMessage: Anthropic.MessageParam = {
       content: msg.content.map((content) => {
         if (content._original?.provider === "anthropic") {
-          return content._original.raw as Anthropic.ContentBlock
+          if (typeof content._original.raw !== "string") {
+            return content._original.raw as Anthropic.ContentBlock
+          }
         }
 
+        if (typeof content === "string") {
+          return {
+            text: content,
+            type: "text",
+          }
+        }
         if (content.type === "text") {
           return {
             text: content.text || "",

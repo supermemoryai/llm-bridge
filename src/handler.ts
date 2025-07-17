@@ -47,11 +47,14 @@ export async function handleUniversalRequest(
   // Count final tokens
   const finalAnalysis = countUniversalTokens(editedRequest)
 
+  console.log('[LLM BRIDGE] EDITED REQUEST', JSON.stringify(editedRequest, null, 2))
+
   // Translate back to provider format
   const translatedBody = fromUniversal(provider, editedRequest as any)
 
   delete headers["Content-Type"]
 
+  console.log(`LLM BRIDGE translated body ${JSON.stringify(translatedBody, null, 2)}`)
   // Make the request to the provider
   const response = await fetch(targetUrl, {
     body: JSON.stringify(translatedBody),
