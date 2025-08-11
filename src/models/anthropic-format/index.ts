@@ -94,6 +94,17 @@ function parseAnthropicContent(
 export function anthropicToUniversal(
   body: AnthropicBody,
 ): UniversalBody<"anthropic"> {
+  // Validate and handle malformed input
+  if (!body.messages || !Array.isArray(body.messages)) {
+    return {
+      _original: { provider: "anthropic", raw: body },
+      messages: [],
+      model: String(body.model || "unknown"),
+      provider: "anthropic",
+      max_tokens: body.max_tokens || 1024,
+    }
+  }
+
   const universalMessages: UniversalMessage<"anthropic">[] = body.messages.map(
     (msg, index) => {
       // Check for cache control in message content
