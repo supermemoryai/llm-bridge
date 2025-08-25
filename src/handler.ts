@@ -52,7 +52,9 @@ export async function handleUniversalRequest(
   // If targeting OpenAI Responses endpoint, hint formatter to emit Responses shape
   const urlPath = new URL(targetUrl).pathname
   let requestForTranslation: UniversalBody = editedRequest
-  if (provider === "openai" && urlPath.includes("/v1/responses")) {
+  const pathSegments = urlPath.split("/").filter(Boolean)
+  const hasResponsesSegment = pathSegments.includes("responses")
+  if (provider === "openai" && hasResponsesSegment) {
     requestForTranslation = {
       ...editedRequest,
       provider_params: {

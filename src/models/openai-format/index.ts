@@ -1,6 +1,8 @@
 import OpenAI from "openai"
 import type {
   ResponseCreateParams as OpenAIResponsesCreateParams,
+  ResponseCreateParamsStreaming as OpenAIResponsesCreateParamsStreaming,
+  ResponseCreateParamsNonStreaming as OpenAIResponsesCreateParamsNonStreaming,
   ResponseInputItem as OpenAIResponseInputItem,
   ResponseInputText as OpenAIResponseInputText,
   ResponseInputImage as OpenAIResponseInputImage,
@@ -8,7 +10,6 @@ import type {
   FunctionTool as OpenAIFunctionTool,
   ToolChoiceFunction as OpenAIToolChoiceFunction,
   ToolChoiceOptions as OpenAIToolChoiceOptions,
-  ToolChoiceTypes as OpenAIToolChoiceTypes,
 } from "openai/resources/responses/responses"
 import {
   UniversalBody,
@@ -19,6 +20,7 @@ import {
   UniversalToolCall,
 } from "../../types/universal"
 import { OpenAIBody, OpenAIChatBody, OpenAIResponsesBody } from "../../types/providers"
+import type { Tool as OpenAIResponsesTool } from "openai/resources/responses/responses"
 import { generateId } from "../../helpers/utils"
 
 function extractSystemFromOpenAIMessages(
@@ -207,6 +209,12 @@ function hasMessagesBeenModified(universal: UniversalBody<"openai">): boolean {
   if (!universal._original?.raw) return true
   
   const originalBody = universal._original.raw as OpenAIBody
+  const originalLooksResponses = isOpenAIResponsesBody(originalBody)
+  // If target shape changed (Chat vs Responses), treat as modified
+  if (shouldEmitResponses(universal) !== originalLooksResponses) {
+    return true
+  }
+
   const originalMessages = (originalBody as OpenAIChatBody).messages || []
   
   // Check if message count changed
@@ -221,20 +229,35 @@ function hasMessagesBeenModified(universal: UniversalBody<"openai">): boolean {
     !m.metadata.originalIndex // New messages without originalIndex
   )
   
-  return hasInjectedMessages
+  // Also check if system/instructions changed
+  const originalSystem = (() => {
+    if (originalLooksResponses) {
+      const b = originalBody as OpenAIResponsesBody
+      return typeof b.instructions === "string" ? b.instructions : undefined
+    }
+    const chat = originalBody as OpenAIChatBody
+    const sys = extractSystemFromOpenAIMessages(chat.messages || [])
+    return sys
+  })()
+
+  const currentSystem = typeof universal.system === "string" ? universal.system : (typeof universal.system === "object" ? universal.system?.content : undefined)
+
+  const systemChanged = (originalSystem || "") !== (currentSystem || "")
+
+  return hasInjectedMessages || systemChanged
 }
 
 export function universalToOpenAI(
   universal: UniversalBody<"openai">,
 ): OpenAIBody {
-  // 🎯 PERFECT RECONSTRUCTION: If we have the original and no modifications, use it directly
-  if (universal._original?.provider === "openai" && !hasMessagesBeenModified(universal)) {
-    return universal._original.raw as OpenAIBody
-  }
-
   // Decide which OpenAI shape to emit
   if (shouldEmitResponses(universal)) {
     return universalToResponses(universal)
+  }
+
+  // 🎯 PERFECT RECONSTRUCTION: If we have the original and no modifications, use it directly
+  if (universal._original?.provider === "openai" && !hasMessagesBeenModified(universal)) {
+    return universal._original.raw as OpenAIBody
   }
 
   // Otherwise, translate from universal format to Chat Completions
@@ -478,7 +501,7 @@ function responsesToUniversal(body: OpenAIResponsesBody): UniversalBody<"openai"
 
   // Map function tools; preserve built-in tools in provider_params
   const functionTools: UniversalTool[] = []
-  const builtinTools: unknown[] = []
+  const builtinTools: OpenAIResponsesTool[] = []
   if (Array.isArray(body.tools)) {
     for (const tool of body.tools) {
       if ((tool as OpenAIFunctionTool).type === "function") {
@@ -620,18 +643,14 @@ function shouldEmitResponses(universal: UniversalBody<"openai">): boolean {
 function universalToResponses(
   universal: UniversalBody<"openai">,
 ): OpenAIResponsesBody {
-  const result: OpenAIResponsesCreateParams = {
+  const base: Omit<OpenAIResponsesCreateParamsNonStreaming, "stream"> = {
     model: universal.model,
   }
-
-  // Streaming
-  if (typeof universal.stream !== "undefined") {
-    if (universal.stream === true) {
-      ;(result as any).stream = true
-    } else {
-      ;(result as any).stream = false
-    }
-  }
+  const streaming: OpenAIResponsesCreateParamsStreaming | OpenAIResponsesCreateParamsNonStreaming =
+    universal.stream === true
+      ? ({ ...base, stream: true } as OpenAIResponsesCreateParamsStreaming)
+      : ({ ...base, stream: false } as OpenAIResponsesCreateParamsNonStreaming)
+  const result: OpenAIResponsesCreateParams = streaming
 
   // Temperature/top_p
   if (typeof universal.temperature !== "undefined") result.temperature = universal.temperature
@@ -684,7 +703,7 @@ function universalToResponses(
   }
 
   // Tools
-  const tools: Array<OpenAIFunctionTool | OpenAIToolChoiceTypes> = []
+  const tools: Array<OpenAIFunctionTool | OpenAIResponsesTool> = []
   if (Array.isArray(universal.tools)) {
     for (const t of universal.tools) {
       const functionTool: OpenAIFunctionTool = {
@@ -698,9 +717,9 @@ function universalToResponses(
     }
   }
   const pp = (universal.provider_params || {}) as Record<string, unknown>
-  const builtins = Array.isArray(pp.responses_builtin_tools) ? (pp.responses_builtin_tools as Array<OpenAIToolChoiceTypes>) : []
+  const builtins = Array.isArray(pp.responses_builtin_tools) ? (pp.responses_builtin_tools as Array<OpenAIResponsesTool>) : []
   if (builtins.length > 0) {
-    for (const b of builtins) tools.push(b as OpenAIToolChoiceTypes)
+    for (const b of builtins) tools.push(b)
   }
   if (tools.length > 0) {
     ;(result as any).tools = tools

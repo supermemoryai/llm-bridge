@@ -129,6 +129,27 @@ describe("handleUniversalRequest", () => {
     expect(result.observabilityData?.provider).toBe("openai")
   })
 
+  it("should emit Responses shape for Azure-style path containing responses", async () => {
+    const mockEditFunction = async (request: UniversalBody) => ({
+      request,
+      contextModified: false,
+    })
+
+    const result = await handleUniversalRequest(
+      "https://my-resource.openai.azure.com/openai/deployments/gpt-4o/responses",
+      { 
+        model: "gpt-4o",
+        messages: [{ role: "user", content: "Hello" }]
+      },
+      { Authorization: "Bearer token" },
+      "POST",
+      mockEditFunction
+    )
+
+    expect(result.response).toBeDefined()
+    expect(result.observabilityData?.provider).toBe("openai")
+  })
+
   it("should generate request ID when not provided", async () => {
     const mockEditFunction = async (request: UniversalBody) => ({
       request,

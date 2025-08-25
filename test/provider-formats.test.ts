@@ -154,8 +154,8 @@ describe("Provider Format Conversions", () => {
       expect((universal.provider_params as any)?.store).toBe(true)
       expect((universal.provider_params as any)?.previous_response_id).toBe("resp_123")
 
-      // Back to Responses
-      const back = fromUniversal("openai", universal) as any
+      // Back to Responses (explicitly signal Responses emission)
+      const back = fromUniversal("openai", { ...universal, provider_params: { ...(universal.provider_params || {}), openai_target: "responses" } }) as any
       expect(back.model).toBe("gpt-4o")
       expect(back.instructions).toBe("You are helpful.")
       expect(back.store).toBe(true)
@@ -166,6 +166,27 @@ describe("Provider Format Conversions", () => {
         expect(msg.role).toBe("user")
         expect(msg.type).toBe("message")
       }
+    })
+
+    it("should convert Chat-shaped universal to Responses when target is responses and streaming unions are correct", () => {
+      const universal: UniversalBody = {
+        provider: "openai",
+        model: "gpt-4o",
+        messages: [
+          { id: "1", role: "user", content: [{ type: "text", text: "Hi" }], metadata: {} },
+        ],
+        system: "You are helpful.",
+        stream: true,
+      }
+
+      const responses = fromUniversal(
+        "openai",
+        { ...universal, provider_params: { openai_target: "responses" } },
+      ) as any
+
+      expect(responses.model).toBe("gpt-4o")
+      expect(responses.stream).toBe(true)
+      expect(Array.isArray(responses.input)).toBe(true)
     })
   })
 
