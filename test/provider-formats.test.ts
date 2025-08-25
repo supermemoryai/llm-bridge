@@ -193,6 +193,66 @@ describe("Provider Format Conversions", () => {
       expect(responses.stream).toBe(true)
       expect(Array.isArray(responses.input)).toBe(true)
     })
+
+    it("should map Chat response_format to Responses text.format when emitting Responses", () => {
+      const universal: UniversalBody = {
+        provider: "openai",
+        model: "gpt-4o",
+        messages: [
+          { id: "1", role: "user", content: [{ type: "text", text: "Hi" }], metadata: { provider: "openai" } },
+        ],
+        system: "You are helpful.",
+        provider_params: {
+          response_format: { type: "json_object" },
+          openai_target: "responses",
+        },
+      }
+
+      const responses = fromUniversal(
+        "openai",
+        universal,
+      ) as any
+
+      expect(responses).toBeDefined()
+      // Expect text.format to be present
+      expect(responses.text).toBeDefined()
+      expect(responses.text.format).toBeDefined()
+      expect(responses.text.format.type).toBe("json_schema")
+      // Permissive schema mapping for json_object
+      expect(responses.text.format.json_schema?.schema?.type).toBe("object")
+      expect(responses.text.format.json_schema?.schema?.additionalProperties).toBe(true)
+    })
+
+    it("should map Responses text.format to Chat response_format when emitting Chat", () => {
+      const responsesReq = {
+        model: "gpt-4o",
+        instructions: "You are helpful.",
+        input: [
+          { type: "message", role: "user", content: [{ type: "input_text", text: "Hello" }] },
+        ],
+        text: {
+          format: {
+            type: "json_schema",
+            json_schema: {
+              name: "MySchema",
+              schema: { type: "object", properties: { answer: { type: "string" } }, required: ["answer"], additionalProperties: false },
+            },
+          },
+        },
+      }
+
+      const universal = toUniversal("openai", responsesReq as any)
+      // Now emit Chat (ensure we don't emit Responses by removing original responses provenance)
+      delete (universal as any)._original
+      const chat = fromUniversal("openai", universal) as any
+
+      expect(chat).toBeDefined()
+      expect(chat.messages).toBeDefined()
+      expect(chat.response_format).toBeDefined()
+      expect(chat.response_format.type).toBe("json_schema")
+      expect(chat.response_format.json_schema?.schema?.type).toBe("object")
+      expect(chat.response_format.json_schema?.name).toBe("MySchema")
+    })
   })
 
   describe("Anthropic Format", () => {

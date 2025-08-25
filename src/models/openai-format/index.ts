@@ -428,6 +428,11 @@ export function universalToOpenAI(
     if (universal.provider_params.response_format !== undefined) {
       ;(result as OpenAIChatBody).response_format = universal.provider_params.response_format as any
     }
+    // If Responses-style text.format exists and Chat response_format is not set, map it
+    if ((result as any).response_format === undefined && (universal.provider_params as any).text) {
+      const mapped = mapResponsesTextFormatToChatResponseFormat((universal.provider_params as any).text)
+      if (mapped) (result as any).response_format = mapped
+    }
     if (universal.provider_params.logprobs !== undefined) {
       ;(result as OpenAIChatBody).logprobs = universal.provider_params.logprobs
     }
@@ -442,6 +447,47 @@ export function universalToOpenAI(
 // ------------------------
 // Helpers and new Responses support
 // ------------------------
+
+// Mapping helpers between Chat `response_format` and Responses `text.format`
+function mapChatResponseFormatToResponsesTextFormat(
+  responseFormat: unknown,
+): { format: unknown } | undefined {
+  if (!responseFormat || typeof responseFormat !== "object") return undefined
+  const rf = responseFormat as Record<string, unknown>
+  const rfType = rf.type
+  if (rfType === "json_schema") {
+    // Pass through json_schema payload as-is
+    return { format: { type: "json_schema", json_schema: rf.json_schema } }
+  }
+  if (rfType === "json_object") {
+    // Map json_object to a permissive object schema
+    const schema = {
+      type: "object",
+      additionalProperties: true,
+    }
+    const json_schema = {
+      name: (rf as any)?.name || "AutoObject",
+      schema,
+    }
+    return { format: { type: "json_schema", json_schema } }
+  }
+  return undefined
+}
+
+function mapResponsesTextFormatToChatResponseFormat(
+  textField: unknown,
+): unknown | undefined {
+  if (!textField || typeof textField !== "object") return undefined
+  const tf = textField as Record<string, unknown>
+  const format = tf.format as Record<string, unknown> | undefined
+  if (!format || typeof format !== "object") return undefined
+  const fType = format.type
+  if (fType === "json_schema") {
+    // Pass through json_schema payload
+    return { type: "json_schema", json_schema: (format as any).json_schema }
+  }
+  return undefined
+}
 
 function isOpenAIResponsesBody(body: OpenAIBody): body is OpenAIResponsesBody {
   const anyBody = body as Record<string, unknown>
@@ -741,6 +787,11 @@ function universalToResponses(
   if (typeof pp.previous_response_id !== "undefined") (result as any).previous_response_id = pp.previous_response_id
   if (typeof pp.include !== "undefined") (result as any).include = pp.include
   if (typeof pp.text !== "undefined") (result as any).text = pp.text
+  // If Chat response_format is present but text is not, map it to Responses text.format
+  if (typeof (result as any).text === "undefined" && typeof pp.response_format !== "undefined") {
+    const mapped = mapChatResponseFormatToResponsesTextFormat(pp.response_format)
+    if (mapped) (result as any).text = mapped
+  }
   if (typeof pp.parallel_tool_calls !== "undefined") (result as any).parallel_tool_calls = pp.parallel_tool_calls
   if (typeof pp.service_tier !== "undefined") (result as any).service_tier = pp.service_tier
   if (typeof pp.truncation !== "undefined") (result as any).truncation = pp.truncation
