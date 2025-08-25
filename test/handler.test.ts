@@ -3,7 +3,7 @@ import { handleUniversalRequest } from "../src/handler"
 import { UniversalBody } from "../src/types/universal"
 
 // Mock fetch globally
-global.fetch = async (_input: RequestInfo, init?: RequestInit) => {
+;(globalThis as any).fetch = async (_input: RequestInfo, init?: RequestInit) => {
   try {
     const body = init?.body ? JSON.parse(String(init.body)) : {}
     // If this looks like a Responses API request, mock a minimal Responses output
@@ -124,7 +124,7 @@ describe("handleUniversalRequest", () => {
     )
 
     expect(result.response).toBeDefined()
-    const sentBody = JSON.parse((await result.response.json() as any) ? JSON.stringify({}) : '{}')
+    // Response body is consumed later by assertions; no-op read removed to avoid unused variable
     // We cannot easily access request body here, but mock ensures responses path accepted
     expect(result.observabilityData?.provider).toBe("openai")
   })

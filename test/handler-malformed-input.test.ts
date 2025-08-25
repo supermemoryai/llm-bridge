@@ -2,13 +2,13 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { handleUniversalRequest } from '../src/handler'
 
 // Mock fetch globally for these tests
-global.fetch = vi.fn()
+;(globalThis as any).fetch = vi.fn()
 
 describe('Handler with Malformed Input', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     // Setup a mock fetch response
-    ;(global.fetch as any).mockResolvedValue({
+    ;(globalThis.fetch as any).mockResolvedValue({
       ok: true,
       status: 200,
       json: async () => ({ choices: [{ message: { content: 'response' } }] }),
@@ -301,8 +301,8 @@ describe('Handler with Malformed Input', () => {
       expect(mockEditFunction).toHaveBeenCalled()
       
       // Verify the fetch was called with the transformed body
-      expect(global.fetch).toHaveBeenCalled()
-      const fetchCall = (global.fetch as any).mock.calls[0]
+      expect(globalThis.fetch).toHaveBeenCalled()
+      const fetchCall = (globalThis.fetch as any).mock.calls[0]
       const sentBody = JSON.parse(fetchCall[1].body)
       
       // The body should have been transformed back to Anthropic format with injected message
@@ -371,7 +371,7 @@ describe('Handler with Malformed Input', () => {
       // at anthropicToUniversal -> body.messages.map(...)
       
       let threwError = false
-      let result
+      let result: Awaited<ReturnType<typeof handleUniversalRequest>> | undefined
       
       try {
         result = await handleUniversalRequest(

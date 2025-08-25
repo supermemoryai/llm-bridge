@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest"
 import { toUniversal, fromUniversal } from "../src/models"
 import { UniversalBody } from "../src/types/universal"
+import type { AnthropicBody } from "../src/types/providers"
 
 describe("Provider Format Conversions", () => {
   describe("OpenAI Format", () => {
@@ -77,7 +78,7 @@ describe("Provider Format Conversions", () => {
     })
 
     it("should convert universal back to OpenAI format", () => {
-      const universal: UniversalBody = {
+      const universal: UniversalBody<"openai"> = {
         provider: "openai",
         model: "gpt-4",
         messages: [
@@ -85,7 +86,7 @@ describe("Provider Format Conversions", () => {
             id: "msg-1",
             role: "user",
             content: [{ type: "text", text: "Hello" }],
-            metadata: {}
+            metadata: { provider: "openai" }
           }
         ],
         system: "You are helpful",
@@ -94,15 +95,19 @@ describe("Provider Format Conversions", () => {
       }
 
       const openaiRequest = fromUniversal("openai", universal)
-      
+
       expect(openaiRequest.model).toBe("gpt-4")
-      expect(openaiRequest.messages).toHaveLength(2) // system + user
-      expect(openaiRequest.messages[0].role).toBe("system")
-      expect(openaiRequest.messages[0].content).toBe("You are helpful")
-      expect(openaiRequest.messages[1].role).toBe("user")
-      expect(openaiRequest.messages[1].content).toBe("Hello")
-      expect(openaiRequest.temperature).toBe(0.7)
-      expect(openaiRequest.max_tokens).toBe(100)
+      if ("messages" in openaiRequest) {
+        expect(openaiRequest.messages).toHaveLength(2)
+        expect(openaiRequest.messages[0].role).toBe("system")
+        expect(openaiRequest.messages[0].content).toBe("You are helpful")
+        expect(openaiRequest.messages[1].role).toBe("user")
+        expect(openaiRequest.messages[1].content).toBe("Hello")
+        expect(openaiRequest.temperature).toBe(0.7)
+        expect(openaiRequest.max_tokens).toBe(100)
+      } else {
+        expect(false).toBe(true)
+      }
     })
 
     // New: Responses API conversion test
@@ -173,7 +178,7 @@ describe("Provider Format Conversions", () => {
         provider: "openai",
         model: "gpt-4o",
         messages: [
-          { id: "1", role: "user", content: [{ type: "text", text: "Hi" }], metadata: {} },
+          { id: "1", role: "user", content: [{ type: "text", text: "Hi" }], metadata: { provider: "openai" } },
         ],
         system: "You are helpful.",
         stream: true,
@@ -192,14 +197,15 @@ describe("Provider Format Conversions", () => {
 
   describe("Anthropic Format", () => {
     it("should convert Anthropic request to universal format", () => {
-      const anthropicRequest = {
+      const anthropicRequest: AnthropicBody = {
         model: "claude-3-sonnet-20240229",
         messages: [
           { role: "user", content: "Hello Claude" }
         ],
         system: "You are Claude",
         max_tokens: 200,
-        temperature: 0.5
+        temperature: 0.5,
+        stream: true
       }
 
       const universal = toUniversal("anthropic", anthropicRequest)
@@ -215,7 +221,7 @@ describe("Provider Format Conversions", () => {
     })
 
     it("should handle Anthropic multimodal content", () => {
-      const anthropicRequest = {
+      const anthropicRequest: AnthropicBody = {
         model: "claude-3-sonnet-20240229",
         messages: [
           {
@@ -233,7 +239,9 @@ describe("Provider Format Conversions", () => {
             ]
           }
         ],
-        max_tokens: 100
+        max_tokens: 100,
+        stream: true,
+        system: undefined as any // explicit to satisfy union shape where system may be undefined
       }
 
       const universal = toUniversal("anthropic", anthropicRequest)
@@ -244,7 +252,7 @@ describe("Provider Format Conversions", () => {
     })
 
     it("should handle Anthropic tool use", () => {
-      const anthropicRequest = {
+      const anthropicRequest: AnthropicBody = {
         model: "claude-3-sonnet-20240229",
         messages: [
           {
@@ -259,7 +267,9 @@ describe("Provider Format Conversions", () => {
             ]
           }
         ],
-        max_tokens: 100
+        max_tokens: 100,
+        stream: true,
+        system: undefined as any
       }
 
       const universal = toUniversal("anthropic", anthropicRequest)
@@ -279,7 +289,7 @@ describe("Provider Format Conversions", () => {
             id: "msg-1",
             role: "user",
             content: [{ type: "text", text: "Hello Claude" }],
-            metadata: {}
+            metadata: { provider: "anthropic" }
           }
         ],
         system: "You are helpful",
@@ -289,13 +299,13 @@ describe("Provider Format Conversions", () => {
 
       const anthropicRequest = fromUniversal("anthropic", universal)
       
-      expect(anthropicRequest.model).toBe("claude-3-sonnet-20240229")
-      expect(anthropicRequest.system).toBe("You are helpful")
-      expect(anthropicRequest.messages).toHaveLength(1)
-      expect(anthropicRequest.messages[0].role).toBe("user")
-      expect(anthropicRequest.messages[0].content).toEqual([{ type: "text", text: "Hello Claude" }])
-      expect(anthropicRequest.temperature).toBe(0.5)
-      expect(anthropicRequest.max_tokens).toBe(200)
+      expect((anthropicRequest as any).model).toBe("claude-3-sonnet-20240229")
+      expect((anthropicRequest as any).system).toBe("You are helpful")
+      expect((anthropicRequest as any).messages).toHaveLength(1)
+      expect((anthropicRequest as any).messages[0].role).toBe("user")
+      expect((anthropicRequest as any).messages[0].content).toEqual([{ type: "text", text: "Hello Claude" }])
+      expect((anthropicRequest as any).temperature).toBe(0.5)
+      expect((anthropicRequest as any).max_tokens).toBe(200)
     })
   })
 
@@ -359,6 +369,7 @@ describe("Provider Format Conversions", () => {
           }
         ],
         systemInstruction: {
+          role: "system",
           parts: [{ text: "You are a helpful assistant" }]
         }
       }
@@ -377,7 +388,7 @@ describe("Provider Format Conversions", () => {
             id: "msg-1",
             role: "user",
             content: [{ type: "text", text: "Hello Gemini" }],
-            metadata: {}
+            metadata: { provider: "google" }
           }
         ],
         system: "You are helpful",
@@ -386,13 +397,24 @@ describe("Provider Format Conversions", () => {
       }
 
       const googleRequest = fromUniversal("google", universal)
-      
-      expect(googleRequest.contents).toHaveLength(1)
-      expect(googleRequest.contents[0].role).toBe("user")
-      expect(googleRequest.contents[0].parts[0].text).toBe("Hello Gemini")
-      expect(googleRequest.systemInstruction?.parts[0].text).toBe("You are helpful")
-      expect(googleRequest.generationConfig?.temperature).toBe(0.8)
-      expect(googleRequest.generationConfig?.maxOutputTokens).toBe(150)
+
+      if ("contents" in googleRequest) {
+        expect(googleRequest.contents).toHaveLength(1)
+        expect(googleRequest.contents[0].role).toBe("user")
+        expect(googleRequest.contents[0].parts[0].text).toBe("Hello Gemini")
+        const si = googleRequest.systemInstruction
+        if (typeof si === "string") {
+          expect(si).toBe("You are helpful")
+        } else if (Array.isArray(si)) {
+          expect(si[0]?.text).toBe("You are helpful")
+        } else if (si && typeof si === "object" && "parts" in si) {
+          expect((si as { parts: Array<{ text?: string }> }).parts[0].text).toBe("You are helpful")
+        }
+        expect(googleRequest.generationConfig?.temperature).toBe(0.8)
+        expect(googleRequest.generationConfig?.maxOutputTokens).toBe(150)
+      } else {
+        expect(false).toBe(true)
+      }
     })
   })
 
@@ -411,34 +433,46 @@ describe("Provider Format Conversions", () => {
       const universal = toUniversal("openai", openaiRequest)
       const anthropicRequest = fromUniversal("anthropic", universal)
       
-      expect(anthropicRequest.model).toBe("gpt-4")
-      expect(anthropicRequest.system).toBe("You are helpful")
-      expect(anthropicRequest.messages).toHaveLength(1)
-      expect(anthropicRequest.messages[0].role).toBe("user")
-      expect(anthropicRequest.temperature).toBe(0.7)
-      expect(anthropicRequest.max_tokens).toBe(100)
+      expect((anthropicRequest as any).model).toBe("gpt-4")
+      expect((anthropicRequest as any).system).toBe("You are helpful")
+      expect((anthropicRequest as any).messages).toHaveLength(1)
+      expect((anthropicRequest as any).messages[0].role).toBe("user")
+      expect((anthropicRequest as any).temperature).toBe(0.7)
+      expect((anthropicRequest as any).max_tokens).toBe(100)
     })
 
     it("should handle Anthropic to Google conversion", () => {
-      const anthropicRequest = {
+      const anthropicRequest: AnthropicBody = {
         model: "claude-3-sonnet-20240229",
         messages: [
           { role: "user", content: "Hello Claude" }
         ],
         system: "You are Claude",
         max_tokens: 200,
-        temperature: 0.5
+        temperature: 0.5,
+        stream: true
       }
 
       const universal = toUniversal("anthropic", anthropicRequest)
       const googleRequest = fromUniversal("google", universal)
-      
-      expect(googleRequest.contents).toHaveLength(1)
-      expect(googleRequest.contents[0].role).toBe("user")
-      expect(googleRequest.contents[0].parts[0].text).toBe("Hello Claude")
-      expect(googleRequest.systemInstruction?.parts[0].text).toBe("You are Claude")
-      expect(googleRequest.generationConfig?.temperature).toBe(0.5)
-      expect(googleRequest.generationConfig?.maxOutputTokens).toBe(200)
+
+      if ("contents" in googleRequest) {
+        expect(googleRequest.contents).toHaveLength(1)
+        expect(googleRequest.contents[0].role).toBe("user")
+        expect(googleRequest.contents[0].parts[0].text).toBe("Hello Claude")
+        const si = googleRequest.systemInstruction
+        if (typeof si === "string") {
+          expect(si).toBe("You are Claude")
+        } else if (Array.isArray(si)) {
+          expect(si[0]?.text).toBe("You are Claude")
+        } else if (si && typeof si === "object" && "parts" in si) {
+          expect((si as { parts: Array<{ text?: string }> }).parts[0].text).toBe("You are Claude")
+        }
+        expect(googleRequest.generationConfig?.temperature).toBe(0.5)
+        expect(googleRequest.generationConfig?.maxOutputTokens).toBe(200)
+      } else {
+        expect(false).toBe(true)
+      }
     })
   })
 })

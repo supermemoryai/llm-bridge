@@ -390,9 +390,13 @@ describe("Universal Format Conversion", () => {
 
       expect(converted.model).toBe("gpt-4")
       expect(converted.temperature).toBe(0.8)
-      expect(converted.messages).toHaveLength(2)
-      expect(converted.messages[0].role).toBe("system")
-      expect(converted.messages[0].content).toBe("You are helpful")
+      if ("messages" in converted) {
+        expect(converted.messages).toHaveLength(2)
+        expect(converted.messages[0].role).toBe("system")
+        expect(converted.messages[0].content).toBe("You are helpful")
+      } else {
+        expect(false).toBe(true)
+      }
     })
 
     test("should preserve original data in round-trip conversion", () => {

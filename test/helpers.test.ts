@@ -42,7 +42,7 @@ describe("utils", () => {
           { type: "text", text: "Hello" },
           { type: "text", text: "World" }
         ],
-        metadata: {}
+        metadata: { provider: "openai" }
       }
 
       const text = getTextContent(message)
@@ -55,9 +55,9 @@ describe("utils", () => {
         role: "user",
         content: [
           { type: "text", text: "Hello" },
-          { type: "image", url: "image.jpg" }
+          { type: "image", media: { url: "image.jpg" } }
         ],
-        metadata: {}
+        metadata: { provider: "openai" }
       }
 
       const text = getTextContent(message)
@@ -71,9 +71,9 @@ describe("utils", () => {
         id: "msg-1",
         role: "assistant",
         content: [
-          { type: "tool_call", tool_call: { id: "call-1", name: "test", arguments: "{}" } }
+          { type: "tool_call", tool_call: { id: "call-1", name: "test", arguments: {} } }
         ],
-        metadata: {}
+        metadata: { provider: "openai" }
       }
 
       expect(hasToolCalls(message)).toBe(true)
@@ -84,8 +84,8 @@ describe("utils", () => {
         id: "msg-1",
         role: "assistant",
         content: [{ type: "text", text: "Using tools" }],
-        metadata: {},
-        tool_calls: [{ id: "call-1", name: "test", arguments: "{}" }]
+        metadata: { provider: "openai" },
+        tool_calls: [{ id: "call-1", name: "test", arguments: {} }]
       }
 
       expect(hasToolCalls(message)).toBe(true)
@@ -96,7 +96,7 @@ describe("utils", () => {
         id: "msg-1",
         role: "user",
         content: [{ type: "text", text: "Hello" }],
-        metadata: {}
+        metadata: { provider: "openai" }
       }
 
       expect(hasToolCalls(message)).toBe(false)
@@ -110,9 +110,9 @@ describe("utils", () => {
         role: "user",
         content: [
           { type: "text", text: "Look at this" },
-          { type: "image", url: "image.jpg" }
+          { type: "image", media: { url: "image.jpg" } }
         ],
-        metadata: {}
+        metadata: { provider: "openai" }
       }
 
       expect(hasMultimodalContent(message)).toBe(true)
@@ -122,22 +122,22 @@ describe("utils", () => {
       const audioMessage: UniversalMessage = {
         id: "msg-1",
         role: "user",
-        content: [{ type: "audio", url: "audio.mp3" }],
-        metadata: {}
+        content: [{ type: "audio", media: { url: "audio.mp3" } }],
+        metadata: { provider: "openai" }
       }
 
       const videoMessage: UniversalMessage = {
         id: "msg-2",
         role: "user",
-        content: [{ type: "video", url: "video.mp4" }],
-        metadata: {}
+        content: [{ type: "video", media: { url: "video.mp4" } }],
+        metadata: { provider: "openai" }
       }
 
       const documentMessage: UniversalMessage = {
         id: "msg-3",
         role: "user",
-        content: [{ type: "document", url: "doc.pdf" }],
-        metadata: {}
+        content: [{ type: "document", media: { url: "doc.pdf" } }],
+        metadata: { provider: "openai" }
       }
 
       expect(hasMultimodalContent(audioMessage)).toBe(true)
@@ -152,12 +152,12 @@ describe("utils", () => {
         id: "msg-1",
         role: "assistant",
         content: [
-          { type: "tool_call", tool_call: { id: "call-1", name: "test", arguments: "{}" } }
+          { type: "tool_call", tool_call: { id: "call-1", name: "test", arguments: {} } }
         ],
-        metadata: {}
+        metadata: { provider: "openai" }
       }
 
-      const toolCalls = extractToolCalls(message)
+      const toolCalls = extractToolCalls({ ...message, metadata: { provider: "openai" } })
       expect(toolCalls).toHaveLength(1)
       expect(toolCalls[0].id).toBe("call-1")
     })
@@ -167,11 +167,11 @@ describe("utils", () => {
         id: "msg-1",
         role: "assistant",
         content: [{ type: "text", text: "Using tools" }],
-        metadata: {},
-        tool_calls: [{ id: "call-1", name: "test", arguments: "{}" }]
+        metadata: { provider: "openai" },
+        tool_calls: [{ id: "call-1", name: "test", arguments: {} }]
       }
 
-      const toolCalls = extractToolCalls(message)
+      const toolCalls = extractToolCalls({ ...message, metadata: { provider: "openai" } })
       expect(toolCalls).toHaveLength(1)
       expect(toolCalls[0].id).toBe("call-1")
     })
@@ -183,10 +183,10 @@ describe("utils", () => {
         id: "msg-1",
         role: "user",
         content: [{ type: "text", text: "Hello" }],
-        metadata: {}
+        metadata: { provider: "openai" }
       }
 
-      const updated = addTextContent(message, "World")
+      const updated = addTextContent({ ...message, metadata: { provider: "openai" } }, "World")
       expect(updated.content).toHaveLength(2)
       expect(updated.content[1]).toEqual({ type: "text", text: "World" })
     })
@@ -199,15 +199,15 @@ describe("utils", () => {
         role: "user",
         content: [
           { type: "text", text: "Hello" },
-          { type: "image", url: "image.jpg" }
+          { type: "image", media: { url: "image.jpg" } }
         ],
-        metadata: {}
+        metadata: { provider: "openai" }
       }
 
       const updated = replaceTextContent(message, "New text")
       expect(updated.content).toHaveLength(2)
       expect(updated.content[0]).toEqual({ type: "text", text: "New text" })
-      expect(updated.content[1]).toEqual({ type: "image", url: "image.jpg" })
+      expect(updated.content[1]).toEqual({ type: "image", media: { url: "image.jpg" } })
     })
   })
 
@@ -221,7 +221,7 @@ describe("utils", () => {
             id: "msg-1",
             role: "user",
             content: [{ type: "text", text: "Hello world" }],
-            metadata: {}
+            metadata: { provider: "openai" }
           }
         ],
         system: "You are a helpful assistant"
@@ -241,7 +241,7 @@ describe("utils", () => {
             id: "msg-1",
             role: "user",
             content: [{ type: "text", text: "Hello" }],
-            metadata: {}
+            metadata: { provider: "openai" }
           }
         ],
         max_tokens: 500
@@ -262,7 +262,7 @@ describe("utils", () => {
             id: "msg-1",
             role: "user",
             content: [{ type: "text", text: "Hello" }],
-            metadata: {}
+            metadata: { provider: "openai" }
           }
         ]
       }
@@ -280,7 +280,7 @@ describe("utils", () => {
             id: "msg-1",
             role: "user",
             content: [{ type: "text", text: "Hello" }],
-            metadata: {}
+            metadata: { provider: "openai" }
           }
         ]
       } as UniversalBody
@@ -311,7 +311,7 @@ describe("reconstructing", () => {
         provider: "openai",
         model: "gpt-4",
         messages: [],
-        _original: { provider: "openai", data: {} }
+        _original: { provider: "openai", raw: {} }
       }
 
       expect(canPerfectlyReconstruct(universal, "openai")).toBe(true)
@@ -322,7 +322,7 @@ describe("reconstructing", () => {
         provider: "openai",
         model: "gpt-4",
         messages: [],
-        _original: { provider: "anthropic", data: {} }
+        _original: { provider: "anthropic", raw: {} }
       }
 
       expect(canPerfectlyReconstruct(universal, "openai")).toBe(false)
@@ -335,7 +335,7 @@ describe("reconstructing", () => {
         provider: "openai",
         model: "gpt-4",
         messages: [],
-        _original: { provider: "openai", data: {} }
+        _original: { provider: "openai", raw: {} }
       }
 
       const quality = getReconstructionQuality(universal, "openai")
@@ -351,7 +351,7 @@ describe("reconstructing", () => {
             id: "msg-1",
             role: "user",
             content: [{ type: "text", text: "Hello" }],
-            metadata: {}
+            metadata: { provider: "openai" }
           }
         ]
       }
@@ -372,10 +372,10 @@ describe("reconstructing", () => {
             id: "msg-1",
             role: "user",
             content: [{ type: "text", text: "Hello" }],
-            metadata: { originalIndex: 0 }
+            metadata: { provider: "openai", originalIndex: 0 }
           }
         ],
-        _original: { provider: "openai", data: {} }
+        _original: { provider: "openai", raw: {} }
       }
 
       const summary = getOriginalDataSummary(universal)
@@ -395,7 +395,7 @@ describe("reconstructing", () => {
             id: "msg-1",
             role: "user",
             content: [{ type: "text", text: "Hello" }],
-            metadata: {}
+            metadata: { provider: "openai" }
           }
         ]
       }
@@ -415,7 +415,7 @@ describe("type-guards", () => {
         id: "msg-1",
         role: "user",
         content: [{ type: "text", text: "Hello" }],
-        metadata: {}
+        metadata: { provider: "openai" }
       }
 
       expect(isUniversalMessage(message)).toBe(true)
@@ -438,7 +438,7 @@ describe("type-guards", () => {
             id: "msg-1",
             role: "user",
             content: [{ type: "text", text: "Hello" }],
-            metadata: {}
+            metadata: { provider: "openai" }
           }
         ]
       }
