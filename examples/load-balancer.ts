@@ -5,7 +5,7 @@
  * LLM providers with automatic fallbacks, health checking, and cost optimization.
  */
 
-import { toUniversal, fromUniversal, detectProvider, getModelCosts, countUniversalTokens } from '../src'
+import { toUniversal, fromUniversal, countUniversalTokens } from '../src'
 
 // Provider configuration with health status and performance metrics
 interface ProviderConfig {
@@ -70,9 +70,8 @@ class UniversalLLMLoadBalancer {
     }
     
     // Calculate token count for cost estimation
-    const sourceProvider = detectProvider(request)
-    const universal = toUniversal(sourceProvider as any, request)
-    const tokens = countUniversalTokens(universal, universal.model)
+    const universal = toUniversal('openai', request)
+    const tokens = countUniversalTokens(universal)
     
     let selectedProvider: ProviderConfig
     
@@ -118,7 +117,7 @@ class UniversalLLMLoadBalancer {
   /**
    * Calculate balanced score for provider selection
    */
-  private calculateBalancedScore(provider: ProviderConfig, tokens: any): number {
+  private calculateBalancedScore(provider: ProviderConfig, tokens: { inputTokens: number; multimodalContentCount: number; toolCallsCount: number }): number {
     // Normalize metrics (higher score = better)
     const latencyScore = 1000 / (provider.latency + 100) // Inverse of latency
     const reliabilityScore = (100 - provider.errorRate) / 100 // Inverse of error rate
@@ -164,8 +163,7 @@ class UniversalLLMLoadBalancer {
         provider.currentRequests++
         
         // Convert request to target provider format
-        const sourceProvider = detectProvider(request)
-        const universal = toUniversal(sourceProvider as any, request)
+        const universal = toUniversal('openai', request)
         const targetRequest = fromUniversal(providerName as any, universal)
         
         // Mock API call (replace with actual provider SDK in production)
@@ -188,7 +186,8 @@ class UniversalLLMLoadBalancer {
         }
         
       } catch (error) {
-        console.log(`❌ Request failed with ${providerName}:`, error.message)
+        const message = error instanceof Error ? error.message : String(error)
+        console.log(`❌ Request failed with ${providerName}:`, message)
         
         // Record failed request
         this.recordRequest(providerName, false, Date.now() - startTime)
@@ -218,9 +217,8 @@ class UniversalLLMLoadBalancer {
           case 'cheapest': return a.costMultiplier - b.costMultiplier
           case 'most_reliable': return a.errorRate - b.errorRate
           default:
-            const sourceProvider = detectProvider(request)
-            const universal = toUniversal(sourceProvider as any, request)
-            const tokens = countUniversalTokens(universal, universal.model)
+            const universal = toUniversal('openai', request)
+            const tokens = countUniversalTokens(universal)
             return this.calculateBalancedScore(b, tokens) - this.calculateBalancedScore(a, tokens)
         }
       })
@@ -339,7 +337,7 @@ class UniversalLLMLoadBalancer {
     const stats = {}
     for (const [name, provider] of this.providers) {
       const recentRequests = this.requestHistory.filter(r => r.provider === name)
-      stats[name] = {
+      ;(stats as Record<string, unknown>)[name] = {
         isHealthy: provider.isHealthy,
         latency: provider.latency,
         errorRate: provider.errorRate,
@@ -382,7 +380,8 @@ async function demonstrateLoadBalancer() {
       console.log(`   Response time: ${response.metadata.requestTime}ms`)
       console.log(`   Fallbacks used: ${response.metadata.fallbacksUsed}`)
     } catch (error) {
-      console.log(`❌ Failed: ${error.message}`)
+      const message = error instanceof Error ? error.message : String(error)
+      console.log(`❌ Failed: ${message}`)
     }
   }
   
