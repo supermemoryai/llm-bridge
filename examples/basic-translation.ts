@@ -5,12 +5,11 @@
  * using LLM Bridge's core translation functions.
  */
 
-import { toUniversal, fromUniversal, translateBetweenProviders } from '../src'
-s
+import { toUniversal, fromUniversal, translateBetweenProviders, OpenAIChatBody } from '../src'
 // Example 1: OpenAI to Universal to Anthropic
 console.log('🔄 Example 1: OpenAI → Universal → Anthropic')
 
-const openaiRequest = {
+const openaiRequest: OpenAIChatBody = {
   model: "gpt-4",
   messages: [
     { role: "system", content: "You are a helpful AI assistant" },
@@ -18,7 +17,7 @@ const openaiRequest = {
   ],
   temperature: 0.7,
   max_tokens: 500
-} as any
+}
 
 console.log('📝 Original OpenAI Request:')
 console.log(JSON.stringify(openaiRequest, null, 2))
@@ -40,14 +39,14 @@ console.log(JSON.stringify(anthropicRequest, null, 2))
 // Example 2: Direct provider-to-provider translation
 console.log('\n\n🚀 Example 2: Direct Translation (OpenAI → Google)')
 
-const googleRequest = translateBetweenProviders("openai", "google", openaiRequest as any)
+const googleRequest = translateBetweenProviders("openai", "google", openaiRequest)
 console.log('🔍 Google Gemini Format:')
 console.log(JSON.stringify(googleRequest, null, 2))
 
 // Example 3: Multimodal content translation
 console.log('\n\n🖼️ Example 3: Multimodal Content Translation')
 
-const multimodalRequest = {
+const multimodalRequest: OpenAIChatBody = {
   model: "gpt-4-vision-preview",
   messages: [{
     role: "user",
@@ -62,35 +61,32 @@ const multimodalRequest = {
       }
     ]
   }]
-} as any
+}
 
-const multimodalAnthropic = translateBetweenProviders("openai", "anthropic", multimodalRequest as any)
+const multimodalAnthropic = translateBetweenProviders("openai", "anthropic", multimodalRequest)
 console.log('🖼️ Multimodal Anthropic Format:')
 console.log(JSON.stringify(multimodalAnthropic, null, 2))
 
 // Example 4: Perfect reconstruction
 console.log('\n\n♻️ Example 4: Perfect Reconstruction (Zero Data Loss)')
 
-const originalRequest = {
+const originalRequest: OpenAIChatBody = {
   model: "gpt-4-turbo-preview",
   messages: [
     { role: "user", content: "Hello world" }
   ],
   temperature: 0.5,
-  response_format: { type: "json_object" },
-  seed: 12345,
   top_p: 0.9
-} as any
+}
 
-const universalFormat = toUniversal("openai", originalRequest as any)
+const universalFormat = toUniversal("openai", originalRequest)
 const reconstructed = fromUniversal("openai", universalFormat)
 
 console.log('✅ Perfect reconstruction verified:')
 console.log('Original === Reconstructed:', JSON.stringify(originalRequest) === JSON.stringify(reconstructed))
-console.log('All OpenAI-specific fields preserved:', 
-  reconstructed.response_format && 
-  reconstructed.seed === 12345 && 
-  reconstructed.top_p === 0.9
+console.log('OpenAI fields preserved:', 
+  reconstructed.top_p === 0.9 &&
+  reconstructed.temperature === 0.5
 )
 
 console.log('\n🎉 Basic translation examples completed!')

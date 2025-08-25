@@ -1,6 +1,9 @@
 import type Anthropic from "@anthropic-ai/sdk"
 import type { GenerateContentRequest } from "@google/generative-ai"
 import type OpenAI from "openai"
+import type {
+  ResponseCreateParams as OpenAIResponsesCreateParams,
+} from "openai/resources/responses/responses"
 
 export type ProviderType = "openai" | "anthropic" | "google"
 
@@ -13,8 +16,12 @@ type ExpandRecursively<T> = T extends (...args: any[]) => any
     : never
   : T
 
-export type OpenAIBody =
+export type OpenAIChatBody =
   ExpandRecursively<OpenAI.Chat.ChatCompletionCreateParams>
+
+export type OpenAIResponsesBody = ExpandRecursively<OpenAIResponsesCreateParams>
+
+export type OpenAIBody = OpenAIChatBody | OpenAIResponsesBody
 export type GeminiBody = ExpandRecursively<GenerateContentRequest>
 export type AnthropicBody = ExpandRecursively<Anthropic.MessageCreateParams>
 

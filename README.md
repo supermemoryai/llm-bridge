@@ -10,17 +10,19 @@ LLM Bridge is a powerful TypeScript library that provides seamless translation b
 ## 🚀 Why LLM Bridge Exists
 
 ### The Problem
+
 When building Infinite Chat API, we needed a way to create a proxy that supports multiple LLM providers.
 However, this is a difficult challenge, as I wrote in this blog post: [The API layer for using intelligence is completely broken.](https://x.com/DhravyaShah/status/1941272729552027932).
 
 The particular challenges are in:
+
 - Manipulating and creating proxies for different LLM providers
 - Multi-modality
 - Tool call chains
 - Error handling
 
-
 ### The Solution
+
 LLM Bridge provides a **universal format** that acts as a common language between all major LLM providers, enabling:
 
 ✅ **Perfect Translation** - Convert between OpenAI, Anthropic, and Google formats  
@@ -28,7 +30,7 @@ LLM Bridge provides a **universal format** that acts as a common language betwee
 ✅ **Multimodal Support** - Images, documents, and rich content across providers  
 ✅ **Tool Calling** - Function calling translation between different formats  
 ✅ **Error Handling** - Unified error types with provider-specific translation  
-✅ **Type Safety** - Full TypeScript support with strict typing  
+✅ **Type Safety** - Full TypeScript support with strict typing
 
 ## 📦 Installation
 
@@ -45,37 +47,47 @@ pnpm add llm-bridge
 ### Basic Usage
 
 ```typescript
-import { toUniversal, fromUniversal, translateBetweenProviders } from 'llm-bridge'
+import {
+  toUniversal,
+  fromUniversal,
+  translateBetweenProviders,
+} from "llm-bridge"
 
 // Convert OpenAI request to universal format
 const openaiRequest = {
   model: "gpt-4",
   messages: [
     { role: "system", content: "You are a helpful assistant" },
-    { role: "user", content: "Hello!" }
+    { role: "user", content: "Hello!" },
   ],
   temperature: 0.7,
-  max_tokens: 1000
+  max_tokens: 1000,
 }
 
 const universal = toUniversal("openai", openaiRequest)
 console.log(universal.provider) // "openai"
-console.log(universal.model)    // "gpt-4"
-console.log(universal.system)   // "You are a helpful assistant"
+console.log(universal.model) // "gpt-4"
+console.log(universal.system) // "You are a helpful assistant"
 
 // Convert universal format back to any provider
 const anthropicRequest = fromUniversal("anthropic", universal)
 const googleRequest = fromUniversal("google", universal)
 
 // Or translate directly between providers
-const anthropicRequest2 = translateBetweenProviders("openai", "anthropic", openaiRequest)
+const anthropicRequest2 = translateBetweenProviders(
+  "openai",
+  "anthropic",
+  openaiRequest,
+)
 ```
 
 ### Perfect Reconstruction
 
 ```typescript
 // Round-trip conversion with zero data loss
-const original = { /* your OpenAI request */ }
+const original = {
+  /* your OpenAI request */
+}
 const universal = toUniversal("openai", original)
 const reconstructed = fromUniversal("openai", universal)
 
@@ -102,36 +114,42 @@ Handle images and documents seamlessly across providers:
 // OpenAI format with base64 image
 const openaiMultimodal = {
   model: "gpt-4-vision-preview",
-  messages: [{
-    role: "user",
-    content: [
-      { type: "text", text: "What's in this image?" },
-      { 
-        type: "image_url", 
-        image_url: { 
-          url: "data:image/jpeg;base64,iVBORw0KGgoAAAA...",
-          detail: "high"
-        }
-      }
-    ]
-  }]
+  messages: [
+    {
+      role: "user",
+      content: [
+        { type: "text", text: "What's in this image?" },
+        {
+          type: "image_url",
+          image_url: {
+            url: "data:image/jpeg;base64,iVBORw0KGgoAAAA...",
+            detail: "high",
+          },
+        },
+      ],
+    },
+  ],
 }
 
 // Translate to Anthropic format
-const anthropicMultimodal = translateBetweenProviders("openai", "anthropic", openaiMultimodal)
+const anthropicMultimodal = translateBetweenProviders(
+  "openai",
+  "anthropic",
+  openaiMultimodal,
+)
 
 // Result: Anthropic-compatible format
 // {
 //   model: "gpt-4-vision-preview",
 //   messages: [{
-//     role: "user", 
+//     role: "user",
 //     content: [
 //       { type: "text", text: "What's in this image?" },
-//       { 
+//       {
 //         type: "image",
 //         source: {
 //           type: "base64",
-//           media_type: "image/jpeg", 
+//           media_type: "image/jpeg",
 //           data: "iVBORw0KGgoAAAA..."
 //         }
 //       }
@@ -151,38 +169,46 @@ const openaiWithTools = {
   messages: [
     {
       role: "assistant",
-      tool_calls: [{
-        id: "call_123",
-        type: "function", 
-        function: {
-          name: "get_weather",
-          arguments: '{"location": "San Francisco"}'
-        }
-      }]
+      tool_calls: [
+        {
+          id: "call_123",
+          type: "function",
+          function: {
+            name: "get_weather",
+            arguments: '{"location": "San Francisco"}',
+          },
+        },
+      ],
     },
     {
       role: "tool",
       content: '{"temperature": 72, "condition": "sunny"}',
-      tool_call_id: "call_123"
-    }
+      tool_call_id: "call_123",
+    },
   ],
-  tools: [{
-    type: "function",
-    function: {
-      name: "get_weather",
-      description: "Get weather information",
-      parameters: {
-        type: "object",
-        properties: {
-          location: { type: "string" }
-        }
-      }
-    }
-  }]
+  tools: [
+    {
+      type: "function",
+      function: {
+        name: "get_weather",
+        description: "Get weather information",
+        parameters: {
+          type: "object",
+          properties: {
+            location: { type: "string" },
+          },
+        },
+      },
+    },
+  ],
 }
 
 // Translate to Google Gemini format
-const geminiWithTools = translateBetweenProviders("openai", "google", openaiWithTools)
+const geminiWithTools = translateBetweenProviders(
+  "openai",
+  "google",
+  openaiWithTools,
+)
 
 // Result: Google-compatible tool calling format
 // {
@@ -191,7 +217,7 @@ const geminiWithTools = translateBetweenProviders("openai", "google", openaiWith
 //       role: "model",
 //       parts: [{
 //         functionCall: {
-//           name: "get_weather", 
+//           name: "get_weather",
 //           args: { location: "San Francisco" }
 //         }
 //       }]
@@ -215,14 +241,14 @@ const geminiWithTools = translateBetweenProviders("openai", "google", openaiWith
 Unified error handling with provider-specific error translation:
 
 ```typescript
-import { buildUniversalError, translateError } from 'llm-bridge'
+import { buildUniversalError, translateError } from "llm-bridge"
 
 // Create a universal error
 const error = buildUniversalError(
-  "rate_limit_error", 
+  "rate_limit_error",
   "Rate limit exceeded",
   "openai",
-  { retryAfter: 60 }
+  { retryAfter: 60 },
 )
 
 // Translate to different provider formats
@@ -231,7 +257,7 @@ const googleError = translateError(error.universal, "google")
 
 // Each provider gets the appropriate error format:
 // OpenAI: { error: { type: "insufficient_quota", message: "Rate limit exceeded" } }
-// Anthropic: { type: "error", error: { type: "rate_limit_error", message: "Rate limit exceeded" } }  
+// Anthropic: { type: "error", error: { type: "rate_limit_error", message: "Rate limit exceeded" } }
 // Google: { error: { code: 429, status: "RESOURCE_EXHAUSTED", message: "Rate limit exceeded" } }
 ```
 
@@ -240,11 +266,19 @@ const googleError = translateError(error.universal, "google")
 Automatically detect which provider format you're working with:
 
 ```typescript
-import { detectProvider } from 'llm-bridge'
+import { detectProvider } from "llm-bridge"
 
-const provider1 = detectProvider({ model: "gpt-4", messages: [...] })        // "openai"
-const provider2 = detectProvider({ model: "claude-3-opus", max_tokens: 100 }) // "anthropic"  
-const provider3 = detectProvider({ contents: [...] })                        // "google"
+// Preferred: URL-based detection (matches handler usage)
+const providerFromUrl = detectProvider(
+  "https://api.openai.com/v1/chat/completions",
+  body,
+)
+
+// Body-based detection is supported as a fallback
+const providerFromBody = detectProvider("https://example.com", {
+  model: "gpt-4",
+  messages: [],
+})
 ```
 
 ## 🏗️ Advanced Usage
@@ -252,24 +286,33 @@ const provider3 = detectProvider({ contents: [...] })                        // 
 ### Middleware Pattern
 
 ```typescript
-import { toUniversal, fromUniversal } from 'llm-bridge'
+import {
+  toUniversal,
+  fromUniversal,
+  detectProvider,
+  countUniversalTokens,
+  createObservabilityData,
+} from "llm-bridge"
 
 // Create a universal middleware
 async function universalLLMMiddleware(request: any, targetProvider: string) {
   // Convert any provider format to universal
-  const sourceProvider = detectProvider(request)
+  const sourceProvider = detectProvider(
+    "https://api.openai.com/v1/chat/completions",
+    request,
+  )
   const universal = toUniversal(sourceProvider, request)
-  
+
   // Apply universal transformations
   universal.temperature = Math.min(universal.temperature || 0, 1)
   universal.max_tokens = Math.min(universal.max_tokens || 1000, 4000)
-  
+
   // Convert to target provider
-  const targetRequest = fromUniversal(targetProvider, universal)
-  
+  const targetRequest = fromUniversal(targetProvider as any, universal)
+
   // Make the API call
   const response = await callProvider(targetProvider, targetRequest)
-  
+
   return response
 }
 
@@ -282,20 +325,20 @@ const result2 = await universalLLMMiddleware(anthropicRequest, "google")
 
 ```typescript
 async function robustLLMCall(request: any) {
-  const providers = ["openai", "anthropic", "google"]
-  
+  const providers = ["openai", "anthropic", "google"] as const
+
   for (const provider of providers) {
     try {
-      const universal = toUniversal(detectProvider(request), request)
+      const universal = toUniversal("openai", request)
       const providerRequest = fromUniversal(provider, universal)
-      
+
       return await callProvider(provider, providerRequest)
     } catch (error) {
       console.log(`${provider} failed, trying next provider...`)
       continue
     }
   }
-  
+
   throw new Error("All providers failed")
 }
 ```
@@ -303,27 +346,29 @@ async function robustLLMCall(request: any) {
 ### Cost Optimization
 
 ```typescript
-import { getModelCosts, countUniversalTokens } from 'llm-bridge'
+import { getModelCosts, countUniversalTokens, toUniversal } from "llm-bridge"
 
 function optimizeModelChoice(request: any) {
-  const universal = toUniversal(detectProvider(request), request)
+  const universal = toUniversal("openai", request)
   const tokens = countUniversalTokens(universal)
-  
+
   const models = [
     { provider: "openai", model: "gpt-4o-mini" },
     { provider: "anthropic", model: "claude-3-haiku" },
-    { provider: "google", model: "gemini-1.5-flash" }
+    { provider: "google", model: "gemini-1.5-flash" },
   ]
-  
+
   // Calculate cost for each model
-  const costs = models.map(({ provider, model }) => {
-    const modelCosts = getModelCosts(model)
-    const inputCost = (tokens.inputTokens / 1000) * modelCosts.inputCostPer1K
-    const outputCost = (tokens.outputTokens / 1000) * modelCosts.outputCostPer1K
-    
-    return { provider, model, totalCost: inputCost + outputCost }
-  })
-  
+  const costs = await Promise.all(
+    models.map(async ({ provider, model }) => {
+      const modelCosts = await getModelCosts(model)
+      const inputCost = (tokens.inputTokens / 1000) * modelCosts.inputCost
+      const outputCost =
+        ((tokens.estimatedOutputTokens || 0) / 1000) * modelCosts.outputCost
+      return { provider, model, totalCost: inputCost + outputCost }
+    }),
+  )
+
   // Return cheapest option
   return costs.sort((a, b) => a.totalCost - b.totalCost)[0]
 }
@@ -334,16 +379,16 @@ function optimizeModelChoice(request: any) {
 ### Core Functions
 
 - `toUniversal(provider, body)` - Convert provider format to universal
-- `fromUniversal(provider, universal)` - Convert universal to provider format  
+- `fromUniversal(provider, universal)` - Convert universal to provider format
 - `translateBetweenProviders(from, to, body)` - Direct provider-to-provider translation
-- `detectProvider(body)` - Auto-detect provider from request format
+- `detectProvider(targetUrl, body)` - Detect provider from URL (with body-based fallback)
 
 ### Utility Functions
 
 - `getModelDetails(model)` - Get model information and capabilities
 - `getModelCosts(model)` - Get pricing information for model
-- `countUniversalTokens(universal)` - Estimate token usage
-- `createObservabilityData(universal)` - Generate telemetry data
+- `countUniversalTokens(universal)` - Estimate token usage (overload: universal or message array)
+- `createObservabilityData(originalTokens, finalTokens, provider, modelName, contextModified, options)` - Generate telemetry from numeric counts
 
 ### Error Handling
 
@@ -356,7 +401,7 @@ function optimizeModelChoice(request: any) {
 ### Multi-Provider Chat Application
 
 ```typescript
-import { translateBetweenProviders, detectProvider } from 'llm-bridge'
+import { translateBetweenProviders, detectProvider } from "llm-bridge"
 
 class UniversalChatBot {
   async chat(message: string, preferredProvider = "openai") {
@@ -364,41 +409,42 @@ class UniversalChatBot {
       model: this.getModelForProvider(preferredProvider),
       messages: [
         { role: "system", content: "You are a helpful assistant" },
-        { role: "user", content: message }
+        { role: "user", content: message },
       ],
-      temperature: 0.7
+      temperature: 0.7,
     }
-    
+
     try {
       // Try preferred provider first
       return await this.callProvider(preferredProvider, request)
     } catch (error) {
       // Fallback to other providers
-      const fallbacks = ["anthropic", "google", "openai"]
-        .filter(p => p !== preferredProvider)
-      
+      const fallbacks = ["anthropic", "google", "openai"].filter(
+        (p) => p !== preferredProvider,
+      )
+
       for (const provider of fallbacks) {
         try {
           const translated = translateBetweenProviders(
-            preferredProvider, 
-            provider, 
-            request
+            preferredProvider,
+            provider,
+            request,
           )
           return await this.callProvider(provider, translated)
         } catch (fallbackError) {
           continue
         }
       }
-      
+
       throw new Error("All providers failed")
     }
   }
-  
+
   private getModelForProvider(provider: string) {
     const models = {
       openai: "gpt-4",
-      anthropic: "claude-3-opus-20240229", 
-      google: "gemini-1.5-pro"
+      anthropic: "claude-3-opus-20240229",
+      google: "gemini-1.5-pro",
     }
     return models[provider] || "gpt-4"
   }
@@ -411,26 +457,28 @@ class UniversalChatBot {
 async function analyzeImage(imageUrl: string, provider: string) {
   // Create OpenAI-style request
   const request = {
-    model: "gpt-4-vision-preview", 
-    messages: [{
-      role: "user",
-      content: [
-        { type: "text", text: "Analyze this image in detail" },
-        { type: "image_url", image_url: { url: imageUrl } }
-      ]
-    }]
+    model: "gpt-4-vision-preview",
+    messages: [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "Analyze this image in detail" },
+          { type: "image_url", image_url: { url: imageUrl } },
+        ],
+      },
+    ],
   }
-  
+
   // Translate to target provider
   const translated = translateBetweenProviders("openai", provider, request)
-  
+
   // Call the provider
   return await callProvider(provider, translated)
 }
 
 // Works with any provider
 const openaiResult = await analyzeImage(imageUrl, "openai")
-const claudeResult = await analyzeImage(imageUrl, "anthropic") 
+const claudeResult = await analyzeImage(imageUrl, "anthropic")
 const geminiResult = await analyzeImage(imageUrl, "google")
 ```
 
@@ -443,6 +491,7 @@ npm test
 ```
 
 Our test suite includes:
+
 - ✅ 146 passing tests
 - ✅ Provider format conversion
 - ✅ Universal format translation

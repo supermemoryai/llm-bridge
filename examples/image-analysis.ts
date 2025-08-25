@@ -41,7 +41,7 @@ const mockProviderResponses = {
 }
 
 // Mock API call function
-async function mockApiCall(provider: string, request: any): Promise<any> {
+async function mockApiCall(provider: 'openai' | 'anthropic' | 'google', request: any): Promise<any> {
   console.log(`🌐 Making ${provider} API call...`)
   
   // Simulate network delay
@@ -58,7 +58,7 @@ class UniversalImageAnalyzer {
   async analyzeImage(
     imageData: string,
     prompt: string = "Analyze this image in detail",
-    provider: string = "openai",
+    provider: 'openai' | 'anthropic' | 'google' = "openai",
     options: any = {}
   ) {
     console.log(`🖼️ Analyzing image with ${provider}`)
@@ -85,7 +85,7 @@ class UniversalImageAnalyzer {
     }
     
     // Translate to target provider format
-    const providerRequest = translateBetweenProviders("openai", provider as any, baseRequest as any)
+    const providerRequest = translateBetweenProviders("openai", provider, baseRequest as any)
     
     console.log(`🔄 Translated to ${provider} format`)
     console.log(`📊 Request structure:`, this.summarizeRequest(providerRequest, provider))
@@ -110,11 +110,11 @@ class UniversalImageAnalyzer {
   async compareProviders(
     imageData: string,
     prompt: string = "Describe what you see in this image",
-    providers: string[] = ["openai", "anthropic", "google"]
+    providers: Array<'openai' | 'anthropic' | 'google'> = ["openai", "anthropic", "google"]
   ) {
     console.log(`🔍 Comparing image analysis across ${providers.length} providers\n`)
     
-    const results = []
+    const results: Array<{ provider: 'openai' | 'anthropic' | 'google'; request?: any; response?: string; usage?: object; error?: string }> = []
     
     for (const provider of providers) {
       try {
@@ -122,10 +122,11 @@ class UniversalImageAnalyzer {
         results.push(result)
         console.log(`✅ ${provider} analysis completed\n`)
       } catch (error) {
-        console.log(`❌ ${provider} analysis failed: ${error.message}\n`)
+        const message = error instanceof Error ? error.message : String(error)
+        console.log(`❌ ${provider} analysis failed: ${message}\n`)
         results.push({
           provider,
-          error: error.message
+          error: message
         })
       }
     }
@@ -138,11 +139,11 @@ class UniversalImageAnalyzer {
    */
   async analyzeMultipleImages(
     images: Array<{ data: string; prompt: string; name?: string }>,
-    provider: string = "openai"
+    provider: 'openai' | 'anthropic' | 'google' = "openai"
   ) {
     console.log(`🖼️ Analyzing ${images.length} images with ${provider}\n`)
     
-    const results = []
+    const results: Array<{ name: string; provider: 'openai' | 'anthropic' | 'google'; request?: any; response?: string; usage?: object; error?: string }> = []
     
     for (let i = 0; i < images.length; i++) {
       const image = images[i]
@@ -158,11 +159,12 @@ class UniversalImageAnalyzer {
         })
         console.log(`✅ ${imageName} processed successfully\n`)
       } catch (error) {
-        console.log(`❌ ${imageName} failed: ${error.message}\n`)
+        const message = error instanceof Error ? error.message : String(error)
+        console.log(`❌ ${imageName} failed: ${message}\n`)
         results.push({
           name: imageName,
           provider,
-          error: error.message
+          error: message
         })
       }
     }
@@ -176,7 +178,7 @@ class UniversalImageAnalyzer {
   async performSpecializedAnalysis(
     imageData: string,
     analysisType: 'ocr' | 'objects' | 'colors' | 'emotion' | 'style',
-    provider: string = "openai"
+    provider: 'openai' | 'anthropic' | 'google' = "openai"
   ) {
     const prompts = {
       ocr: "Extract and transcribe all visible text from this image. List each text element separately.",
@@ -196,38 +198,38 @@ class UniversalImageAnalyzer {
   }
   
   // Helper methods
-  private getModelForProvider(provider: string): string {
-    const models = {
+  private getModelForProvider(provider: 'openai' | 'anthropic' | 'google'): string {
+    const models: Record<'openai' | 'anthropic' | 'google', string> = {
       openai: "gpt-4-vision-preview",
       anthropic: "claude-3-opus-20240229",
       google: "gemini-1.5-pro"
     }
-    return models[provider] || "gpt-4-vision-preview"
+    return models[provider]
   }
   
-  private summarizeRequest(request: any, provider: string): object {
+  private summarizeRequest(request: any, provider: 'openai' | 'anthropic' | 'google'): object {
     switch (provider) {
       case "openai":
         return {
           model: request.model,
           messageCount: request.messages?.length || 0,
-          hasImages: request.messages?.some(m => 
-            Array.isArray(m.content) && m.content.some(c => c.type === "image_url")
+          hasImages: request.messages?.some((m: any) => 
+            Array.isArray(m.content) && m.content.some((c: any) => c.type === "image_url")
           ) || false
         }
       case "anthropic":
         return {
           model: request.model,
           messageCount: request.messages?.length || 0,
-          hasImages: request.messages?.some(m =>
-            Array.isArray(m.content) && m.content.some(c => c.type === "image")
+          hasImages: request.messages?.some((m: any) =>
+            Array.isArray(m.content) && m.content.some((c: any) => c.type === "image")
           ) || false
         }
       case "google":
         return {
           contentCount: request.contents?.length || 0,
-          hasImages: request.contents?.some(c =>
-            c.parts?.some(p => p.inlineData)
+          hasImages: request.contents?.some((c: any) =>
+            c.parts?.some((p: any) => p.inlineData)
           ) || false
         }
       default:
@@ -289,11 +291,12 @@ async function demonstrateImageAnalysis() {
   )
   
   console.log('🔍 Comparison Results:')
-  comparisonResults.forEach(result => {
+  comparisonResults.forEach((result: any) => {
     if (result.error) {
       console.log(`❌ ${result.provider}: ${result.error}`)
     } else {
-      console.log(`✅ ${result.provider}: ${result.response.substring(0, 100)}...`)
+      const snippet = result.response ? result.response.substring(0, 100) : ''
+      console.log(`✅ ${result.provider}: ${snippet}...`)
     }
   })
   
@@ -329,11 +332,12 @@ async function demonstrateImageAnalysis() {
   const batchResults = await analyzer.analyzeMultipleImages(multipleImages, "google")
   
   console.log('🔍 Batch Processing Results:')
-  batchResults.forEach(result => {
+  batchResults.forEach((result: any) => {
     if (result.error) {
       console.log(`❌ ${result.name}: ${result.error}`)
     } else {
-      console.log(`✅ ${result.name}: ${result.response.substring(0, 100)}...`)
+      const snippet = result.response ? result.response.substring(0, 100) : ''
+      console.log(`✅ ${result.name}: ${snippet}...`)
     }
   })
   
@@ -387,8 +391,10 @@ function demonstrateFormatTranslation() {
   
   console.log('\n♻️ Round-trip Verification:')
   console.log('Original structure preserved:', JSON.stringify(openaiRequest) === JSON.stringify(roundTrip))
-  console.log('Image data preserved:', roundTrip.messages[0].content[1].image_url.url.includes('base64'))
-  console.log('Detail parameter preserved:', roundTrip.messages[0].content[1].image_url.detail === 'high')
+  const msg0 = (roundTrip as any).messages?.[0]
+  const content1 = Array.isArray(msg0?.content) ? (msg0.content[1] as any) : undefined
+  console.log('Image data preserved:', !!content1?.image_url?.url && String(content1.image_url.url).includes('base64'))
+  console.log('Detail parameter preserved:', content1?.image_url?.detail === 'high')
 }
 
 // Run demonstrations if executed directly

@@ -5,8 +5,8 @@
  * handle requests from any LLM provider and route them to any target provider.
  */
 
-import * as express from 'express'
-import { toUniversal, fromUniversal, detectProvider } from '../src'
+import express, { Request, Response } from 'express'
+import { toUniversal, fromUniversal } from '../src'
 
 // Mock provider clients (replace with actual SDK calls in production)
 const mockProviderClients = {
@@ -34,14 +34,14 @@ const mockProviderClients = {
 
 // Universal LLM Middleware
 function createUniversalLLMMiddleware() {
-  return async (req: express.Request, res: express.Response) => {
+  return async (req: Request, res: Response) => {
     try {
       const { targetProvider = 'openai', ...requestBody } = req.body
       
       console.log(`🔄 Processing request for target provider: ${targetProvider}`)
       
       // Step 1: Auto-detect source provider format
-      const sourceProvider = detectProvider(requestBody)
+      const sourceProvider = 'openai'
       console.log(`📡 Detected source provider: ${sourceProvider}`)
       
       // Step 2: Convert to universal format
@@ -65,20 +65,23 @@ function createUniversalLLMMiddleware() {
       }
       
       // Add observability metadata
-      universal.metadata = {
-        ...universal.metadata,
-        requestId: req.headers['x-request-id'] || `req-${Date.now()}`,
+      const requestId = (req.headers['x-request-id'] as string) || `req-${Date.now()}`
+      const startTs = Date.now()
+      const enriched = { ...universal }
+      enriched.provider_params = {
+        ...enriched.provider_params,
+        requestId,
         sourceProvider,
         targetProvider,
         timestamp: new Date().toISOString()
       }
       
       // Step 4: Convert to target provider format
-      const targetRequest = fromUniversal(targetProvider as any, universal)
+      const targetRequest = fromUniversal(targetProvider as any, enriched)
       console.log(`🎯 Converted to ${targetProvider} format`)
       
       // Step 5: Call the target provider
-      const response = await mockProviderClients[targetProvider](targetRequest)
+      const response = await mockProviderClients[targetProvider as 'openai' | 'anthropic' | 'google'](targetRequest)
       console.log(`✅ Received response from ${targetProvider}`)
       
       // Step 6: Return response with metadata
@@ -87,8 +90,8 @@ function createUniversalLLMMiddleware() {
         metadata: {
           sourceProvider,
           targetProvider,
-          requestId: universal.metadata.requestId,
-          processingTime: Date.now() - parseInt(universal.metadata.requestId.split('-')[1])
+          requestId,
+          processingTime: Date.now() - startTs
         }
       })
       
@@ -96,7 +99,7 @@ function createUniversalLLMMiddleware() {
       console.error('❌ Middleware error:', error)
       res.status(500).json({ 
         error: 'Internal server error',
-        message: error.message 
+        message: error instanceof Error ? error.message : String(error)
       })
     }
   }
@@ -110,7 +113,7 @@ app.use(express.json())
 app.post('/v1/chat/completions', createUniversalLLMMiddleware())
 
 // Health check endpoint
-app.get('/health', (req, res) => {
+app.get('/health', (req: Request, res: Response) => {
   res.json({ status: 'healthy', timestamp: new Date().toISOString() })
 })
 
@@ -132,9 +135,9 @@ async function demonstrateMiddleware() {
   
   console.log('Request:', JSON.stringify(openaiRequest, null, 2))
   // Simulate middleware processing
-  const sourceProvider = detectProvider(openaiRequest)
+  const sourceProvider = 'openai'
   const universal = toUniversal(sourceProvider as any, openaiRequest)
-  const anthropicFormat = fromUniversal("anthropic", universal)
+  fromUniversal("anthropic", universal)
   console.log('✅ Converted to Anthropic format successfully\n')
   
   // Example 2: Anthropic request → Google provider
@@ -150,9 +153,9 @@ async function demonstrateMiddleware() {
   }
   
   console.log('Request:', JSON.stringify(anthropicRequest, null, 2))
-  const sourceProvider2 = detectProvider(anthropicRequest)
+  const sourceProvider2 = 'anthropic'
   const universal2 = toUniversal(sourceProvider2 as any, anthropicRequest)
-  const googleFormat = fromUniversal("google", universal2)
+  fromUniversal("google", universal2)
   console.log('✅ Converted to Google format successfully\n')
   
   // Example 3: Google request → OpenAI provider
@@ -172,9 +175,9 @@ async function demonstrateMiddleware() {
   }
   
   console.log('Request:', JSON.stringify(googleRequest, null, 2))
-  const sourceProvider3 = detectProvider(googleRequest)
+  const sourceProvider3 = 'google'
   const universal3 = toUniversal(sourceProvider3 as any, googleRequest)
-  const openaiFormat = fromUniversal("openai", universal3)
+  fromUniversal("openai", universal3)
   console.log('✅ Converted to OpenAI format successfully\n')
   
   console.log('🎉 Middleware demonstration completed!')

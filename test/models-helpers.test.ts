@@ -10,7 +10,7 @@ import {
 import { UniversalBody } from "../src/types/universal"
 
 // Mock fetch for external API calls
-global.fetch = async (input: string | URL | Request) => {
+;(globalThis as any).fetch = async (input: string | URL | Request) => {
   const url = typeof input === 'string' ? input : input.toString()
   if (url.includes("tokencost")) {
     return new Response(JSON.stringify({
@@ -32,7 +32,7 @@ global.fetch = async (input: string | URL | Request) => {
 describe("models/helpers", () => {
   beforeEach(() => {
     // Reset the cache before each test
-    global.fetch = async (input: string | URL | Request) => {
+    ;(globalThis as any).fetch = async (input: string | URL | Request) => {
       const url = typeof input === 'string' ? input : input.toString()
       if (url.includes("tokencost")) {
         return new Response(JSON.stringify({
@@ -75,7 +75,7 @@ describe("models/helpers", () => {
     })
 
     it("should handle fetch errors gracefully", async () => {
-      global.fetch = async () => {
+      ;(globalThis as any).fetch = async () => {
         throw new Error("Network error")
       }
 
@@ -84,7 +84,7 @@ describe("models/helpers", () => {
     })
 
     it("should handle failed response", async () => {
-      global.fetch = async () => {
+      ;(globalThis as any).fetch = async () => {
         return new Response("Not Found", { status: 404 })
       }
 
@@ -390,11 +390,11 @@ describe("models/helpers", () => {
 
     it("should handle cost calculation errors", async () => {
       // Mock console.error to suppress error output in tests
-      const consoleSpy = global.console.error
-      global.console.error = () => {}
+      const consoleSpy = globalThis.console.error
+      ;(globalThis.console as any).error = () => {}
       
       // Force an error by mocking getModelCosts to throw
-      global.fetch = async () => {
+      ;(globalThis as any).fetch = async () => {
         throw new Error("Network error")
       }
 
@@ -410,7 +410,7 @@ describe("models/helpers", () => {
       expect(data.estimatedOutputCost).toBe(0)
       expect(data.costSavedUSD).toBe(0)
       
-      global.console.error = consoleSpy
+      ;(globalThis.console as any).error = consoleSpy
     })
 
     it("should round costs to 4 decimal places", async () => {

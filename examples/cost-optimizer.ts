@@ -8,10 +8,8 @@
 import { 
   toUniversal, 
   fromUniversal, 
-  detectProvider, 
   countUniversalTokens, 
-  getModelCosts,
-  translateBetweenProviders 
+  getModelCosts
 } from '../src'
 
 interface ModelOption {
@@ -65,9 +63,9 @@ class LLMCostOptimizer {
     console.log(`🎯 Optimizing model selection (priority: ${config.prioritize})`)
     
     // Convert request to universal format for analysis
-    const sourceProvider = detectProvider(request)
-    const universal = toUniversal(sourceProvider as any, request)
-    const tokens = countUniversalTokens(universal, universal.model)
+    const sourceProvider = 'openai'
+    const universal = toUniversal(sourceProvider, request)
+    const tokens = countUniversalTokens(universal)
     
     console.log(`📊 Token analysis: ${tokens.inputTokens} input, ${tokens.estimatedOutputTokens || 'estimated'} output`)
     
@@ -97,7 +95,7 @@ class LLMCostOptimizer {
     const scoredModels = await Promise.all(candidateModels.map(async model => {
       const baseCosts = await getModelCosts(model.model)
       const inputCost = (tokens.inputTokens / 1000) * baseCosts.inputCost * model.costMultiplier
-      const outputCost = (tokens.estimatedOutputTokens / 1000) * baseCosts.outputCost * model.costMultiplier
+      const outputCost = ((tokens.estimatedOutputTokens || 0) / 1000) * baseCosts.outputCost * model.costMultiplier
       const totalCost = inputCost + outputCost
       
       // Filter by max cost if specified
@@ -195,9 +193,9 @@ class LLMCostOptimizer {
     const { selectedModel } = optimization
     
     // Compare with original request cost
-    const originalProvider = detectProvider(request)
-    const originalUniversal = toUniversal(originalProvider as any, request)
-    const originalTokens = countUniversalTokens(originalUniversal, originalUniversal.model)
+    const originalProvider = 'openai'
+    const originalUniversal = toUniversal(originalProvider, request)
+    const originalTokens = countUniversalTokens(originalUniversal)
     const originalModelCosts = await getModelCosts(originalUniversal.model)
     const originalCost = this.calculateCost(originalTokens, originalModelCosts, 1.0)
     
@@ -253,9 +251,9 @@ class LLMCostOptimizer {
         const optimization = await this.optimizeModelSelection(request, finalConfig)
         
         // Calculate potential savings
-        const originalProvider = detectProvider(request)
-        const originalUniversal = toUniversal(originalProvider as any, request)
-        const originalTokens = countUniversalTokens(originalUniversal, originalUniversal.model)
+        const originalProvider = 'openai'
+        const originalUniversal = toUniversal(originalProvider, request)
+        const originalTokens = countUniversalTokens(originalUniversal)
         const originalCost = this.calculateCost(originalTokens, await getModelCosts(originalUniversal.model), 1.0)
         
         const savings = originalCost - optimization.estimatedCost
@@ -272,7 +270,7 @@ class LLMCostOptimizer {
           id,
           optimization: null,
           success: false,
-          error: error.message
+          error: error instanceof Error ? error.message : String(error)
         })
       }
     }
@@ -293,9 +291,9 @@ class LLMCostOptimizer {
     qualityScore: number
     speedScore: number
   }>> {
-    const sourceProvider = detectProvider(request)
-    const universal = toUniversal(sourceProvider as any, request)
-    const tokens = countUniversalTokens(universal, universal.model)
+    const sourceProvider = 'openai'
+    const universal = toUniversal(sourceProvider, request)
+    const tokens = countUniversalTokens(universal)
     
     const results = await Promise.all(this.modelOptions.map(async modelOption => {
       const baseCosts = await getModelCosts(modelOption.model)
@@ -315,9 +313,9 @@ class LLMCostOptimizer {
   }
   
   // Helper methods
-  private calculateCost(tokens: any, baseCosts: any, multiplier: number): number {
+  private calculateCost(tokens: { inputTokens: number; estimatedOutputTokens?: number }, baseCosts: { inputCost: number; outputCost: number }, multiplier: number): number {
     const inputCost = (tokens.inputTokens / 1000) * baseCosts.inputCost * multiplier
-    const outputCost = (tokens.estimatedOutputTokens / 1000) * baseCosts.outputCost * multiplier
+    const outputCost = ((tokens.estimatedOutputTokens || 0) / 1000) * baseCosts.outputCost * multiplier
     return inputCost + outputCost
   }
   
