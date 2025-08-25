@@ -49,8 +49,21 @@ export async function handleUniversalRequest(
 
   console.log('[LLM BRIDGE] EDITED REQUEST', JSON.stringify(editedRequest, null, 2))
 
+  // If targeting OpenAI Responses endpoint, hint formatter to emit Responses shape
+  const urlPath = new URL(targetUrl).pathname
+  let requestForTranslation: UniversalBody = editedRequest
+  if (provider === "openai" && urlPath.includes("/v1/responses")) {
+    requestForTranslation = {
+      ...editedRequest,
+      provider_params: {
+        ...(editedRequest.provider_params || {}),
+        openai_target: "responses",
+      },
+    }
+  }
+
   // Translate back to provider format
-  const translatedBody = fromUniversal(provider, editedRequest as any)
+  const translatedBody = fromUniversal(provider, requestForTranslation as any)
 
   delete headers["Content-Type"]
 

@@ -104,6 +104,69 @@ describe("Provider Format Conversions", () => {
       expect(openaiRequest.temperature).toBe(0.7)
       expect(openaiRequest.max_tokens).toBe(100)
     })
+
+    // New: Responses API conversion test
+    it("should convert Responses API request -> universal and back (preserving store/previous_response_id)", () => {
+      const responsesReq = {
+        model: "gpt-4o",
+        instructions: "You are helpful.",
+        input: [
+          {
+            type: "message",
+            role: "user",
+            content: [
+              { type: "input_text", text: "Hello" },
+              { type: "input_image", detail: "auto", image_url: "https://example.com/image.png" },
+            ],
+          },
+        ],
+        store: true,
+        previous_response_id: "resp_123",
+        include: ["reasoning.encrypted_content"],
+        tools: [
+          {
+            type: "function",
+            name: "get_weather",
+            description: "Get weather",
+            parameters: { type: "object", properties: { city: { type: "string" } } },
+            strict: null,
+          },
+          { type: "web_search_preview" },
+        ],
+        tool_choice: "auto",
+      }
+
+      const universal = toUniversal("openai", responsesReq as any) as UniversalBody
+
+      expect(universal.provider).toBe("openai")
+      expect(universal.model).toBe("gpt-4o")
+      expect(universal.system).toBe("You are helpful.")
+      expect(universal.messages.length).toBe(1)
+      expect(universal.messages[0].role).toBe("user")
+      const textParts = universal.messages[0].content.filter(c => c.type === "text")
+      const imageParts = universal.messages[0].content.filter(c => c.type === "image")
+      expect(textParts.length).toBe(1)
+      expect(textParts[0].text).toBe("Hello")
+      expect(imageParts.length).toBe(1)
+      expect(imageParts[0].media?.url).toBe("https://example.com/image.png")
+
+      // Provider params pass-through
+      expect((universal.provider_params as any)?.store).toBe(true)
+      expect((universal.provider_params as any)?.previous_response_id).toBe("resp_123")
+
+      // Back to Responses
+      const back = fromUniversal("openai", universal) as any
+      expect(back.model).toBe("gpt-4o")
+      expect(back.instructions).toBe("You are helpful.")
+      expect(back.store).toBe(true)
+      expect(back.previous_response_id).toBe("resp_123")
+      expect(Array.isArray(back.input)).toBe(true)
+      if (Array.isArray(back.input)) {
+        const msg = back.input[0]
+        expect(msg.role).toBe("user")
+        expect(msg.type).toBe("message")
+      }
+    })
   })
 
   describe("Anthropic Format", () => {
