@@ -24,14 +24,14 @@ describe('Bug Reproduction: Cannot read properties of undefined (reading \'map\'
       // at anthropicToUniversal (/src/models/anthropic-format/index.ts:96)
       
       let threwError = false
-      let result
+      let result: any
       let errorMessage = ''
 
       try {
         result = anthropicToUniversal(malformedAnthropicBody as any)
-      } catch (error: any) {
+      } catch (error) {
         threwError = true
-        errorMessage = error.message
+        errorMessage = (error as any).message
       }
 
       // After the fix, this should NOT throw an error
@@ -62,7 +62,7 @@ describe('Bug Reproduction: Cannot read properties of undefined (reading \'map\'
 
       // Before fix: this would throw when toUniversal calls anthropicToUniversal
       let threwError = false
-      let result
+      let result: any
 
       try {
         result = toUniversal('anthropic', malformedBody as any)

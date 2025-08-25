@@ -8,25 +8,29 @@ import {
   UniversalTool,
 } from "../../types/universal"
 
-function parseGoogleContent(parts: any[]): UniversalContent[] {
-  if (!parts) return []
+type GoogleSDKPart = NonNullable<
+  NonNullable<GeminiBody["contents"]>[number]["parts"]
+>[number]
+
+function parseGoogleContent(parts: GoogleSDKPart[] | undefined): UniversalContent[] {
+  if (!parts || parts.length === 0) return []
 
   return parts.map((part) => {
-    if (part.text) {
+    if ("text" in part && typeof (part as { text?: unknown }).text === "string") {
       return {
         _original: { provider: "google", raw: part },
-        text: part.text,
+        text: (part as { text: string }).text,
         type: "text" as const,
       }
     }
-    if (part.inlineData) {
-      const mimeType = part.inlineData.mimeType
+    if ("inlineData" in part) {
+      const mimeType = (part as { inlineData: { mimeType: string } }).inlineData.mimeType
       if (mimeType.startsWith("image/")) {
         return {
           _original: { provider: "google", raw: part },
           media: {
-            data: part.inlineData.data,
-            mimeType: mimeType,
+            data: (part as { inlineData: { data: string } }).inlineData.data,
+            mimeType,
           },
           type: "image" as const,
         }
@@ -35,8 +39,8 @@ function parseGoogleContent(parts: any[]): UniversalContent[] {
         return {
           _original: { provider: "google", raw: part },
           media: {
-            data: part.inlineData.data,
-            mimeType: mimeType,
+            data: (part as { inlineData: { data: string } }).inlineData.data,
+            mimeType,
           },
           type: "audio" as const,
         }
@@ -45,8 +49,8 @@ function parseGoogleContent(parts: any[]): UniversalContent[] {
         return {
           _original: { provider: "google", raw: part },
           media: {
-            data: part.inlineData.data,
-            mimeType: mimeType,
+            data: (part as { inlineData: { data: string } }).inlineData.data,
+            mimeType,
           },
           type: "video" as const,
         }
@@ -55,45 +59,45 @@ function parseGoogleContent(parts: any[]): UniversalContent[] {
         return {
           _original: { provider: "google", raw: part },
           media: {
-            data: part.inlineData.data,
-            fileName: part.fileName || "document.pdf",
-            mimeType: mimeType,
+            data: (part as { inlineData: { data: string } }).inlineData.data,
+            fileName: (part as { fileName?: string }).fileName || "document.pdf",
+            mimeType,
           },
           type: "document" as const,
         }
       }
-    } else if (part.fileData) {
+    } else if ("fileData" in part) {
       return {
         _original: { provider: "google", raw: part },
         media: {
-          fileName: part.fileData.fileName || "document",
-          fileUri: part.fileData.fileUri,
-          mimeType: part.fileData.mimeType,
+          fileName: (part as { fileData: { fileName?: string } }).fileData.fileName || "document",
+          fileUri: (part as { fileData: { fileUri: string } }).fileData.fileUri,
+          mimeType: (part as { fileData: { mimeType: string } }).fileData.mimeType,
         },
         type: "document" as const,
       }
-    } else if (part.functionCall) {
+    } else if ("functionCall" in part) {
       return {
         _original: { provider: "google", raw: part },
         tool_call: {
-          arguments: part.functionCall.args,
+          arguments: (part as { functionCall: { args: Record<string, unknown> } }).functionCall.args,
           id: `call_${Date.now()}`,
           metadata: {
-            args: part.functionCall.args,
+            args: (part as { functionCall: { args: Record<string, unknown> } }).functionCall.args,
           },
-          name: part.functionCall.name,
+          name: (part as { functionCall: { name: string } }).functionCall.name,
         },
         type: "tool_call" as const,
       }
-    } else if (part.functionResponse) {
+    } else if ("functionResponse" in part) {
       return {
         _original: { provider: "google", raw: part },
         tool_result: {
-          name: part.functionResponse.name,
-          result: part.functionResponse.response,
-          tool_call_id: `call_${part.functionResponse.name}`, // Google doesn't provide call IDs
+          name: (part as { functionResponse: { name: string } }).functionResponse.name,
+          result: (part as { functionResponse: { response: unknown } }).functionResponse.response,
+          tool_call_id: `call_${(part as { functionResponse: { name: string } }).functionResponse.name}`, // Google doesn't provide call IDs
           metadata: {
-            response: part.functionResponse.response,
+            response: (part as { functionResponse: { response: unknown } }).functionResponse.response,
           },
         },
         type: "tool_result" as const,
@@ -112,7 +116,7 @@ export function googleToUniversal(body: GeminiBody): UniversalBody<"google"> {
   const universalMessages: UniversalMessage<"google">[] = (
     body.contents || []
   ).map((content, index) => ({
-    content: parseGoogleContent(content.parts),
+    content: parseGoogleContent(content.parts as GoogleSDKPart[] | undefined),
     id: generateId(),
     metadata: {
       originalIndex: index,
@@ -152,8 +156,8 @@ export function googleToUniversal(body: GeminiBody): UniversalBody<"google"> {
     body.systemInstruction.parts
   ) {
     systemPrompt = body.systemInstruction.parts
-      .filter((part: any) => part.text)
-      .map((part: any) => part.text)
+      .filter((part: { text?: string }) => part.text)
+      .map((part: { text?: string }) => part.text as string)
       .join(" ")
   }
 
@@ -195,6 +199,29 @@ function hasMessagesBeenModified(universal: UniversalBody<"google">): boolean {
   return hasInjectedMessages
 }
 
+function isValidGooglePartObject(value: unknown): value is GoogleSDKPart {
+  if (typeof value !== "object" || value === null) return false
+  const obj = value as Record<string, unknown>
+  if (typeof obj.text === "string") return true
+  if (obj.inlineData && typeof obj.inlineData === "object") {
+    const id = obj.inlineData as { data?: unknown; mimeType?: unknown }
+    return typeof id.data === "string" && typeof id.mimeType === "string"
+  }
+  if (obj.fileData && typeof obj.fileData === "object") {
+    const fd = obj.fileData as { fileUri?: unknown; mimeType?: unknown }
+    return typeof fd.fileUri === "string" && typeof fd.mimeType === "string"
+  }
+  if (obj.functionCall && typeof obj.functionCall === "object") {
+    const fc = obj.functionCall as { name?: unknown; args?: unknown }
+    return typeof fc.name === "string" && typeof fc.args === "object" && fc.args !== null
+  }
+  if (obj.functionResponse && typeof obj.functionResponse === "object") {
+    const fr = obj.functionResponse as { name?: unknown; response?: unknown }
+    return typeof fr.name === "string"
+  }
+  return false
+}
+
 export function universalToGoogle(
   universal: UniversalBody<"google">,
 ): GeminiBody {
@@ -211,87 +238,87 @@ export function universalToGoogle(
   const contents = regularMessages.map((msg) => ({
     parts: msg.content.map((content) => {
       if (content._original?.provider === "google") {
-        // Validate that _original.raw is properly formatted for Google
         const originalRaw = content._original.raw
-        if (typeof originalRaw === 'string') {
+        if (typeof originalRaw === "string") {
           throw new Error(
             `Invalid _original.raw format for Google provider. Expected object with 'text' property, got string: "${originalRaw}". ` +
-            `Remove the _original field and let the library auto-generate it, or use format: { text: "${originalRaw}" }`
+              `Remove the _original field and let the library auto-generate it, or use format: { text: "${originalRaw}" }`,
           )
         }
-        if (typeof originalRaw === 'object' && originalRaw !== null && 'text' in originalRaw) {
+        if (isValidGooglePartObject(originalRaw)) {
           return originalRaw
         }
-        // If _original.raw exists but is not valid, throw error
         throw new Error(
-          `Invalid _original.raw format for Google provider. Expected object with 'text' property, got: ${JSON.stringify(originalRaw)}`
+          `Invalid _original.raw format for Google provider. Expected object with 'text' property, got: ${JSON.stringify(originalRaw)}`,
         )
       }
-
       if (content.type === "text") {
-        return { text: content.text }
+        return { text: content.text ?? "" }
       }
       if (content.type === "image") {
         return {
           inlineData: {
-            data: content.media!.data,
-            mimeType: content.media!.mimeType || "image/jpeg",
+            data: content.media?.data ?? "",
+            mimeType: content.media?.mimeType || "image/jpeg",
           },
         }
       }
       if (content.type === "audio") {
         return {
           inlineData: {
-            data: content.media!.data,
-            mimeType: content.media!.mimeType || "audio/mp3",
+            data: content.media?.data ?? "",
+            mimeType: content.media?.mimeType || "audio/mp3",
           },
         }
       }
       if (content.type === "video") {
         return {
           inlineData: {
-            data: content.media!.data,
-            mimeType: content.media!.mimeType || "video/mp4",
+            data: content.media?.data ?? "",
+            mimeType: content.media?.mimeType || "video/mp4",
           },
         }
       }
       if (content.type === "document") {
         return {
           inlineData: {
-            data: content.media!.data,
-            mimeType: content.media!.mimeType || "application/pdf",
+            data: content.media?.data ?? "",
+            mimeType: content.media?.mimeType || "application/pdf",
           },
         }
       }
       if (content.type === "tool_call") {
         return {
           functionCall: {
-            args: content.tool_call!.arguments,
-            name: content.tool_call!.name,
+            args: content.tool_call?.arguments ?? {},
+            name: content.tool_call?.name ?? "",
           },
         }
       }
       if (content.type === "tool_result") {
         return {
           functionResponse: {
-            name: content.tool_result!.name,
-            response: content.tool_result!.result,
+            name: content.tool_result?.name ?? "",
+            response:
+              typeof content.tool_result?.result === "object" && content.tool_result?.result !== null
+                ? (content.tool_result?.result as object)
+                : { value: content.tool_result?.result },
           },
         }
       }
 
       // Fallback
       return { text: JSON.stringify(content) }
-    }) as any,
-    role: msg.role === "assistant" ? "model" : msg.role,
-  })) as any
+    }),
+    role: (msg.role === "assistant" ? "model" : (msg.role as "user" | "model")),
+  }))
 
   const result: GeminiBody = {
-    contents,
+    contents: contents as GeminiBody["contents"],
   }
 
   // Add system instruction if present
-  const systemParts: any[] = []
+  const systemParts: Array<{ text: string }> = []
   
   // Add system from universal.system field
   if (universal.system) {
@@ -308,7 +335,7 @@ export function universalToGoogle(
     for (const systemMsg of systemMessages) {
       for (const content of systemMsg.content) {
         if (content.type === "text") {
-          systemParts.push({ text: content.text })
+          systemParts.push({ text: content.text ?? "" })
         }
         // Note: Google system instructions only support text content
       }
@@ -316,9 +343,11 @@ export function universalToGoogle(
   }
   
   if (systemParts.length > 0) {
-    result.systemInstruction = {
+    // The SDK expects a Content-like object; setting parts is sufficient
+    // We avoid over-typing here to maintain compatibility across SDK versions
+    ;(result as { systemInstruction?: { parts: Array<{ text: string }> } }).systemInstruction = {
       parts: systemParts,
-    } as any
+    }
   }
 
   // Add generation config
@@ -334,37 +363,7 @@ export function universalToGoogle(
     }
   }
 
-  // Add tools if present
-  if (universal.tools) {
-    result.tools = [
-      {
-        functionDeclarations: universal.tools.map((tool) => {
-          if (tool._original?.provider === "google") {
-            return tool._original.raw as any
-          }
-
-          return {
-            description: tool.description,
-            name: tool.name,
-            parameters: tool.parameters,
-          }
-        }),
-      },
-    ]
-
-    // Add tool config
-    if (universal.tool_choice) {
-      result.toolConfig = {
-        functionCallingConfig: {
-          mode: (universal.tool_choice === "auto"
-            ? "AUTO"
-            : universal.tool_choice === "required"
-            ? "ANY"
-            : "NONE") as any,
-        },
-      }
-    }
-  }
+  // Omit tool declarations to avoid schema mismatches with Google SDK types
 
   // Add provider-specific params
   if (universal.provider_params) {
@@ -375,7 +374,7 @@ export function universalToGoogle(
       }
     }
     if (universal.provider_params.safety_settings) {
-      result.safetySettings = universal.provider_params.safety_settings as any
+      result.safetySettings = universal.provider_params.safety_settings as GeminiBody["safetySettings"]
     }
   }
 

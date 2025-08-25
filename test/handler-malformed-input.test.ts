@@ -371,7 +371,7 @@ describe('Handler with Malformed Input', () => {
       // at anthropicToUniversal -> body.messages.map(...)
       
       let threwError = false
-      let result
+      let result: any
       
       try {
         result = await handleUniversalRequest(

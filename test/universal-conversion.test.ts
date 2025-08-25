@@ -386,7 +386,7 @@ describe("Universal Format Conversion", () => {
       }
 
       const universal = toUniversal("openai", openaiBody as OpenAIBody)
-      const converted = fromUniversal("openai", universal)
+      const converted = fromUniversal("openai", universal) as import("openai/resources/chat/completions").ChatCompletionCreateParams
 
       expect(converted.model).toBe("gpt-4")
       expect(converted.temperature).toBe(0.8)
@@ -419,7 +419,7 @@ describe("Universal Format Conversion", () => {
       }
 
       const universal = toUniversal("openai", original as OpenAIBody)
-      const converted = fromUniversal("openai", universal)
+      const converted = fromUniversal("openai", universal) as any
 
       expect(converted).toEqual(original)
     })
@@ -482,7 +482,7 @@ describe("Universal Format Conversion", () => {
         temperature: 0.7,
       }
 
-      const converted = fromUniversal("google", universalBody as any)
+      const converted = fromUniversal("google", universalBody as any) as import("@google/generative-ai").GenerateContentRequest
 
       // System message should be moved to systemInstruction
       expect(converted.systemInstruction).toBeDefined()
@@ -544,7 +544,7 @@ describe("Universal Format Conversion", () => {
         temperature: 0.7,
       }
 
-      const converted = fromUniversal("google", universalBody as any)
+      const converted = fromUniversal("google", universalBody as any) as import("@google/generative-ai").GenerateContentRequest
 
       // System message should combine multiple text parts
       expect(converted.systemInstruction).toBeDefined()
@@ -600,7 +600,7 @@ describe("Universal Format Conversion", () => {
         temperature: 0.7,
       }
 
-      const converted = fromUniversal("google", universalBody as any)
+      const converted = fromUniversal("google", universalBody as any) as import("@google/generative-ai").GenerateContentRequest
 
       // System instruction should combine both universal.system and system messages
       expect(converted.systemInstruction).toBeDefined()
@@ -667,7 +667,7 @@ describe("Universal Format Conversion", () => {
         temperature: 0.7,
       }
 
-      const converted = fromUniversal("google", universalBody as any)
+      const converted = fromUniversal("google", universalBody as any) as import("@google/generative-ai").GenerateContentRequest
 
       // Should work without throwing errors
       expect(converted.systemInstruction).toBeDefined()
@@ -731,13 +731,14 @@ describe("Universal Format Conversion", () => {
       )
 
       expect(anthropicBody.messages[0].content).toHaveLength(2)
-      expect((anthropicBody.messages[0].content[0] as any).type).toBe("text")
-      expect((anthropicBody.messages[0].content[1] as any).type).toBe("image")
-      expect((anthropicBody.messages[0].content[1] as any).source?.type).toBe(
+      type AnthropicContent = Exclude<NonNullable<import("@anthropic-ai/sdk/resources/messages").MessageCreateParams["messages"]>[number]["content"][number], string>
+      expect(((anthropicBody.messages[0].content[0] as unknown) as AnthropicContent).type).toBe("text")
+      expect(((anthropicBody.messages[0].content[1] as unknown) as AnthropicContent).type).toBe("image")
+      expect(((anthropicBody.messages[0].content[1] as unknown) as { source?: { type?: string } }).source?.type).toBe(
         "base64",
       )
       expect(
-        (anthropicBody.messages[0].content[1] as any).source?.media_type,
+        (anthropicBody.messages[0].content[1] as unknown as { source?: { media_type?: string } }).source?.media_type,
       ).toBe("image/jpeg")
     })
   })
@@ -745,7 +746,7 @@ describe("Universal Format Conversion", () => {
   describe("Error handling", () => {
     test("should throw on unsupported provider", () => {
       expect(() => {
-        toUniversal("unsupported" as any, {} as OpenAIBody)
+        toUniversal("unsupported" as unknown as import("../src/types/providers").ProviderType, {} as OpenAIBody)
       }).toThrow("Unsupported provider")
     })
 
@@ -756,7 +757,7 @@ describe("Universal Format Conversion", () => {
       }
 
       expect(() => {
-        toUniversal("openai", malformedBody as any)
+        toUniversal("openai", malformedBody as unknown as OpenAIBody)
       }).not.toThrow()
     })
   })

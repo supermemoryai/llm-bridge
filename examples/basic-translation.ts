@@ -6,7 +6,6 @@
  */
 
 import { toUniversal, fromUniversal, translateBetweenProviders } from '../src'
-s
 // Example 1: OpenAI to Universal to Anthropic
 console.log('🔄 Example 1: OpenAI → Universal → Anthropic')
 
@@ -83,7 +82,7 @@ const originalRequest = {
 } as any
 
 const universalFormat = toUniversal("openai", originalRequest as any)
-const reconstructed = fromUniversal("openai", universalFormat)
+const reconstructed = fromUniversal("openai", universalFormat) as any
 
 console.log('✅ Perfect reconstruction verified:')
 console.log('Original === Reconstructed:', JSON.stringify(originalRequest) === JSON.stringify(reconstructed))

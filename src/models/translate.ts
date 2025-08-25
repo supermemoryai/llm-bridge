@@ -9,9 +9,10 @@ export function translateBetweenProviders<
   fromProvider: TFrom,
   toProvider: TTo,
   body: InputBody<TFrom>,
-): InputBody<TTo> {
+  targetUrl?: string,
+): InputBody<TTo> | any {
   // Convert to universal format
-  const universal = toUniversal(fromProvider, body)
+  const universal = toUniversal(fromProvider, body, targetUrl)
 
   // Change provider type
   const universalForTarget = {
@@ -20,5 +21,5 @@ export function translateBetweenProviders<
   } as unknown as UniversalBody<TTo>
 
   // Convert to target provider format
-  return fromUniversal(toProvider, universalForTarget)
+  return fromUniversal(toProvider, universalForTarget, targetUrl) as InputBody<TTo>
 }

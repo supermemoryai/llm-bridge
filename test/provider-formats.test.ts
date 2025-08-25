@@ -15,7 +15,7 @@ describe("Provider Format Conversions", () => {
         max_tokens: 100
       }
 
-      const universal = toUniversal("openai", openaiRequest)
+      const universal = toUniversal("openai", openaiRequest as import("openai/resources/chat/completions").ChatCompletionCreateParams)
       
       expect(universal.provider).toBe("openai")
       expect(universal.model).toBe("gpt-4")
@@ -41,7 +41,7 @@ describe("Provider Format Conversions", () => {
         ]
       }
 
-      const universal = toUniversal("openai", openaiRequest)
+      const universal = toUniversal("openai", openaiRequest as import("openai/resources/chat/completions").ChatCompletionCreateParams)
       
       expect(universal.messages[0].content).toHaveLength(2)
       expect(universal.messages[0].content[0].type).toBe("text")
@@ -69,7 +69,7 @@ describe("Provider Format Conversions", () => {
         ]
       }
 
-      const universal = toUniversal("openai", openaiRequest)
+      const universal = toUniversal("openai", openaiRequest as import("openai/resources/chat/completions").ChatCompletionCreateParams)
       
       expect(universal.messages[0].tool_calls).toHaveLength(1)
       expect(universal.messages[0].tool_calls?.[0].id).toBe("call_123")
@@ -85,7 +85,7 @@ describe("Provider Format Conversions", () => {
             id: "msg-1",
             role: "user",
             content: [{ type: "text", text: "Hello" }],
-            metadata: {}
+            metadata: { provider: "openai" as const }
           }
         ],
         system: "You are helpful",
@@ -93,7 +93,7 @@ describe("Provider Format Conversions", () => {
         max_tokens: 100
       }
 
-      const openaiRequest = fromUniversal("openai", universal)
+      const openaiRequest = fromUniversal("openai", universal) as import("openai/resources/chat/completions").ChatCompletionCreateParams
       
       expect(openaiRequest.model).toBe("gpt-4")
       expect(openaiRequest.messages).toHaveLength(2) // system + user
@@ -118,7 +118,7 @@ describe("Provider Format Conversions", () => {
         temperature: 0.5
       }
 
-      const universal = toUniversal("anthropic", anthropicRequest)
+      const universal = toUniversal("anthropic", anthropicRequest as import("@anthropic-ai/sdk/resources/messages").MessageCreateParams)
       
       expect(universal.provider).toBe("anthropic")
       expect(universal.model).toBe("claude-3-sonnet-20240229")
@@ -152,7 +152,7 @@ describe("Provider Format Conversions", () => {
         max_tokens: 100
       }
 
-      const universal = toUniversal("anthropic", anthropicRequest)
+      const universal = toUniversal("anthropic", anthropicRequest as import("@anthropic-ai/sdk/resources/messages").MessageCreateParams)
       
       expect(universal.messages[0].content).toHaveLength(2)
       expect(universal.messages[0].content[0].type).toBe("text")
@@ -178,7 +178,7 @@ describe("Provider Format Conversions", () => {
         max_tokens: 100
       }
 
-      const universal = toUniversal("anthropic", anthropicRequest)
+      const universal = toUniversal("anthropic", anthropicRequest as import("@anthropic-ai/sdk/resources/messages").MessageCreateParams)
       
       expect(universal.messages[0].content).toHaveLength(1)
       expect(universal.messages[0].content[0].type).toBe("tool_call")
@@ -195,7 +195,7 @@ describe("Provider Format Conversions", () => {
             id: "msg-1",
             role: "user",
             content: [{ type: "text", text: "Hello Claude" }],
-            metadata: {}
+            metadata: { provider: "anthropic" as const }
           }
         ],
         system: "You are helpful",
@@ -203,7 +203,7 @@ describe("Provider Format Conversions", () => {
         max_tokens: 200
       }
 
-      const anthropicRequest = fromUniversal("anthropic", universal)
+      const anthropicRequest = fromUniversal("anthropic", universal) as import("@anthropic-ai/sdk/resources/messages").MessageCreateParams
       
       expect(anthropicRequest.model).toBe("claude-3-sonnet-20240229")
       expect(anthropicRequest.system).toBe("You are helpful")
@@ -230,7 +230,7 @@ describe("Provider Format Conversions", () => {
         }
       }
 
-      const universal = toUniversal("google", googleRequest)
+      const universal = toUniversal("google", googleRequest as import("@google/generative-ai").GenerateContentRequest)
       
       expect(universal.provider).toBe("google")
       expect(universal.model).toBe("gemini-pro")
@@ -259,7 +259,7 @@ describe("Provider Format Conversions", () => {
         ]
       }
 
-      const universal = toUniversal("google", googleRequest)
+      const universal = toUniversal("google", googleRequest as import("@google/generative-ai").GenerateContentRequest)
       
       expect(universal.messages[0].content).toHaveLength(2)
       expect(universal.messages[0].content[0].type).toBe("text")
@@ -279,7 +279,7 @@ describe("Provider Format Conversions", () => {
         }
       }
 
-      const universal = toUniversal("google", googleRequest)
+      const universal = toUniversal("google", googleRequest as import("@google/generative-ai").GenerateContentRequest)
       
       expect(universal.system).toBe("You are a helpful assistant")
     })
@@ -293,7 +293,7 @@ describe("Provider Format Conversions", () => {
             id: "msg-1",
             role: "user",
             content: [{ type: "text", text: "Hello Gemini" }],
-            metadata: {}
+            metadata: { provider: "google" as const }
           }
         ],
         system: "You are helpful",
@@ -301,12 +301,15 @@ describe("Provider Format Conversions", () => {
         max_tokens: 150
       }
 
-      const googleRequest = fromUniversal("google", universal)
+      const googleRequest = fromUniversal("google", universal) as import("@google/generative-ai").GenerateContentRequest
       
       expect(googleRequest.contents).toHaveLength(1)
       expect(googleRequest.contents[0].role).toBe("user")
-      expect(googleRequest.contents[0].parts[0].text).toBe("Hello Gemini")
-      expect(googleRequest.systemInstruction?.parts[0].text).toBe("You are helpful")
+      expect((googleRequest.contents![0].parts![0] as { text: string }).text).toBe("Hello Gemini")
+      expect(
+        googleRequest.systemInstruction &&
+          (googleRequest.systemInstruction as { parts: Array<{ text: string }> }).parts[0].text,
+      ).toBe("You are helpful")
       expect(googleRequest.generationConfig?.temperature).toBe(0.8)
       expect(googleRequest.generationConfig?.maxOutputTokens).toBe(150)
     })
@@ -324,8 +327,8 @@ describe("Provider Format Conversions", () => {
         max_tokens: 100
       }
 
-      const universal = toUniversal("openai", openaiRequest)
-      const anthropicRequest = fromUniversal("anthropic", universal)
+      const universal = toUniversal("openai", openaiRequest as import("openai/resources/chat/completions").ChatCompletionCreateParams)
+      const anthropicRequest = fromUniversal("anthropic", universal) as import("@anthropic-ai/sdk/resources/messages").MessageCreateParams
       
       expect(anthropicRequest.model).toBe("gpt-4")
       expect(anthropicRequest.system).toBe("You are helpful")
@@ -346,13 +349,16 @@ describe("Provider Format Conversions", () => {
         temperature: 0.5
       }
 
-      const universal = toUniversal("anthropic", anthropicRequest)
-      const googleRequest = fromUniversal("google", universal)
+      const universal = toUniversal("anthropic", anthropicRequest as import("@anthropic-ai/sdk/resources/messages").MessageCreateParams)
+      const googleRequest = fromUniversal("google", universal) as import("@google/generative-ai").GenerateContentRequest
       
       expect(googleRequest.contents).toHaveLength(1)
       expect(googleRequest.contents[0].role).toBe("user")
-      expect(googleRequest.contents[0].parts[0].text).toBe("Hello Claude")
-      expect(googleRequest.systemInstruction?.parts[0].text).toBe("You are Claude")
+      expect((googleRequest.contents![0].parts![0] as { text: string }).text).toBe("Hello Claude")
+      expect(
+        googleRequest.systemInstruction &&
+          (googleRequest.systemInstruction as { parts: Array<{ text: string }> }).parts[0].text,
+      ).toBe("You are Claude")
       expect(googleRequest.generationConfig?.temperature).toBe(0.5)
       expect(googleRequest.generationConfig?.maxOutputTokens).toBe(200)
     })

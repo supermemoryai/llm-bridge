@@ -3,14 +3,14 @@ import { InputBody, ProviderType } from "../types/providers"
 import { UniversalBody } from "../types/universal"
 
 export function canPerfectlyReconstruct<T extends ProviderType>(
-  universal: UniversalBody<any>,
+  universal: UniversalBody<T>,
   targetProvider: T,
 ): boolean {
   return universal._original?.provider === targetProvider
 }
 
 export function getReconstructionQuality<T extends ProviderType>(
-  universal: UniversalBody<any>,
+  universal: UniversalBody<T>,
   targetProvider: T,
 ): number {
   if (universal._original?.provider === targetProvider) {
@@ -70,7 +70,7 @@ export function getReconstructionQuality<T extends ProviderType>(
 /**
  * Create a summary of what original data is available
  */
-export function getOriginalDataSummary(universal: UniversalBody): {
+export function getOriginalDataSummary<T extends ProviderType>(universal: UniversalBody<T>): {
   hasTopLevelOriginal: boolean
   originalProvider?: ProviderType
   messagePreservation: {
@@ -156,9 +156,9 @@ export function getOriginalDataSummary(universal: UniversalBody): {
  */
 export function fromUniversalWithInfo<T extends ProviderType>(
   provider: T,
-  universal: UniversalBody<any>,
+  universal: UniversalBody<T>,
 ): {
-  result: InputBody<T>
+  result: InputBody<T> | import("../models/openai-responses-format").OpenAIResponsesBody
   reconstructionQuality: number
   usedOriginalData: boolean
   summary: ReturnType<typeof getOriginalDataSummary>
@@ -166,7 +166,7 @@ export function fromUniversalWithInfo<T extends ProviderType>(
   const quality = getReconstructionQuality(universal, provider)
   const usedOriginal = canPerfectlyReconstruct(universal, provider)
   const summary = getOriginalDataSummary(universal)
-  const result = fromUniversal(provider, universal as any)
+  const result = fromUniversal(provider, universal)
 
   return {
     reconstructionQuality: quality,

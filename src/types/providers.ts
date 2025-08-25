@@ -1,6 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk"
-import type { GenerateContentRequest } from "@google/generative-ai"
 import type OpenAI from "openai"
+import type { GenerateContentRequest } from "@google/generative-ai"
 
 export type ProviderType = "openai" | "anthropic" | "google"
 

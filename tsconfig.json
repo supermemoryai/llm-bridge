@@ -12,7 +12,8 @@
     "noEmit": true,
     "outDir": "dist",
     "resolveJsonModule": true,
-
     "types": ["vitest/globals"]
-  }
+  },
+  "include": ["src", "test", "user_tests"],
+  "exclude": ["examples", "dist", "node_modules"]
 }

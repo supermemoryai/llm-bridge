@@ -31,7 +31,11 @@ export async function handleUniversalRequest(
 
   // Detect provider and convert to universal
   const provider = detectProvider(targetUrl, body)
-  const universal = toUniversal(provider, body as any)
+  const universal = toUniversal(
+    provider,
+    body as import("./types/providers").InputBody<typeof provider> | import("./models/openai-responses-format").OpenAIResponsesBody,
+    targetUrl,
+  )
 
   // Extract model name
   const model = extractModelFromUniversal(universal)
@@ -50,7 +54,11 @@ export async function handleUniversalRequest(
   console.log('[LLM BRIDGE] EDITED REQUEST', JSON.stringify(editedRequest, null, 2))
 
   // Translate back to provider format
-  const translatedBody = fromUniversal(provider, editedRequest as any)
+  const translatedBody = fromUniversal(
+    provider,
+    editedRequest as import("./types/universal").UniversalBody<typeof provider>,
+    targetUrl,
+  )
 
   delete headers["Content-Type"]
 
