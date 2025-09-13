@@ -5,7 +5,8 @@
  * LLM providers using LLM Bridge's universal format.
  */
 
-import { toUniversal, fromUniversal, translateBetweenProviders } from '../src'
+import { toUniversal, fromUniversal, translateBetweenProviders, OpenAIChatBody, AnthropicBody, GeminiBody } from '../src'
+import { SchemaType } from '@google/generative-ai'
 
 // Example tool definitions
 const weatherTool = {
@@ -48,7 +49,7 @@ console.log('🛠️ Function Calling Translation Demo\n')
 // Example 1: OpenAI Tool Calling Format
 console.log('📝 Example 1: OpenAI Tool Calling Format')
 
-const openaiToolRequest = {
+const openaiToolRequest: OpenAIChatBody = {
   model: "gpt-4",
   messages: [
     {
@@ -104,7 +105,7 @@ console.log('🔧 OpenAI Request with Tool Calls:')
 console.log(JSON.stringify(openaiToolRequest, null, 2))
 
 // Convert to universal format
-const universal = toUniversal("openai", openaiToolRequest as any)
+const universal = toUniversal("openai", openaiToolRequest)
 console.log('\n🌐 Universal Format:')
 console.log(`Tools: ${universal.tools?.length || 0}`)
 console.log(`Messages: ${universal.messages.length}`)
@@ -114,21 +115,31 @@ console.log(`Tool results: ${universal.messages.filter(m => m.metadata?.tool_cal
 // Example 2: Translate to Anthropic Format
 console.log('\n🤖 Example 2: Translation to Anthropic Format')
 
-const anthropicFormat = translateBetweenProviders("openai", "anthropic", openaiToolRequest as any)
+const anthropicFormat = translateBetweenProviders("openai", "anthropic", openaiToolRequest)
 console.log('Anthropic Tool Calling Format:')
 console.log(JSON.stringify(anthropicFormat, null, 2))
 
 // Example 3: Translate to Google Format  
 console.log('\n🔍 Example 3: Translation to Google Format')
 
-const googleFormat = translateBetweenProviders("openai", "google", openaiToolRequest as any)
+const googleFormat = translateBetweenProviders("openai", "google", openaiToolRequest)
 console.log('Google Function Calling Format:')
 console.log(JSON.stringify(googleFormat, null, 2))
 
 // Example 4: Anthropic to OpenAI Translation
 console.log('\n🔄 Example 4: Anthropic → OpenAI Translation')
 
-const anthropicToolRequest = {
+type JsonSchemaObject = { type: 'object'; properties: Record<string, unknown>; required?: string[] }
+
+const calculatorInputSchema: JsonSchemaObject = {
+  type: 'object',
+  properties: {
+    expression: { type: 'string', description: 'Mathematical expression to evaluate' }
+  },
+  required: ['expression']
+}
+
+const anthropicToolRequest: AnthropicBody = {
   model: "claude-3-opus-20240229",
   max_tokens: 1000,
   messages: [
@@ -166,7 +177,7 @@ const anthropicToolRequest = {
     {
       name: "calculate",
       description: "Perform mathematical calculations", 
-      input_schema: calculatorTool.parameters
+      input_schema: calculatorInputSchema
     }
   ]
 }
@@ -178,7 +189,7 @@ console.log(JSON.stringify(anthropicToOpenai, null, 2))
 // Example 5: Google to Universal Translation
 console.log('\n🌟 Example 5: Google → Universal Translation')
 
-const googleToolRequest = {
+const googleToolRequest: GeminiBody = {
   contents: [
     {
       role: "user",
@@ -213,22 +224,33 @@ const googleToolRequest = {
         {
           name: "get_weather",
           description: "Get weather information",
-          parameters: weatherTool.parameters
+          parameters: {
+            type: SchemaType.OBJECT,
+            properties: {
+              location: { type: SchemaType.STRING, description: "The city and state, e.g. San Francisco, CA" },
+              unit: { type: SchemaType.STRING, format: 'enum', enum: ["celsius", "fahrenheit"], description: "Temperature unit" }
+            },
+            required: ["location"]
+          }
         }
       ]
     }
   ]
 }
 
-const googleUniversal = toUniversal("google", googleToolRequest as any)
+const googleUniversal = toUniversal("google", googleToolRequest)
 console.log('Google → Universal:')
 console.log(`Tools: ${googleUniversal.tools?.length}`)
-console.log(`Function calls: ${googleUniversal.messages[1].content.filter(c => c.type === 'tool_call').length}`)
-console.log(`Function responses: ${googleUniversal.messages[2].content.filter(c => c.type === 'tool_result').length}`)
+console.log(`Function calls: ${
+  googleUniversal.messages[1].content.filter(c => c.type === 'tool_call').length
+}`)
+console.log(`Function responses: ${
+  googleUniversal.messages[2].content.filter(c => c.type === 'tool_result').length
+}`)
 
 // Convert back to other formats
-const googleToAnthropic = fromUniversal("anthropic", googleUniversal)
-const googleToOpenai = fromUniversal("openai", googleUniversal)
+fromUniversal("anthropic", googleUniversal)
+fromUniversal("openai", googleUniversal)
 
 console.log('\n✅ Successful translations:')
 console.log('   Google → Anthropic: ✓')
@@ -237,7 +259,7 @@ console.log('   Google → OpenAI: ✓')
 // Example 6: Complex Multi-Tool Scenario
 console.log('\n🚀 Example 6: Complex Multi-Tool Scenario')
 
-const complexToolRequest = {
+const complexToolRequest: OpenAIChatBody = {
   model: "gpt-4",
   messages: [
     {
@@ -281,19 +303,24 @@ const complexToolRequest = {
 }
 
 // Translate to all providers
-const complexToAnthropic = translateBetweenProviders("openai", "anthropic", complexToolRequest as any)
-const complexToGoogle = translateBetweenProviders("openai", "google", complexToolRequest as any)
+const complexToAnthropic = translateBetweenProviders("openai", "anthropic", complexToolRequest)
+const complexToGoogle = translateBetweenProviders("openai", "google", complexToolRequest)
 
 console.log('✅ Complex multi-tool request translated successfully:')
-console.log(`   OpenAI tools: ${complexToolRequest.tools.length}`)
+console.log(`   OpenAI tools: ${Array.isArray(complexToolRequest.tools) ? complexToolRequest.tools.length : 0}`)
 console.log(`   Anthropic tools: ${complexToAnthropic.tools?.length}`)
-console.log(`   Google function declarations: ${complexToGoogle.tools?.[0]?.functionDeclarations?.length}`)
+console.log(`   Google function declarations: ${
+  Array.isArray(complexToGoogle.tools) && complexToGoogle.tools.length > 0 &&
+  (complexToGoogle.tools[0] as any)?.functionDeclarations
+    ? (complexToGoogle.tools[0] as any).functionDeclarations.length
+    : 0
+}`)
 
 // Example 7: Round-trip Verification
 console.log('\n♻️ Example 7: Round-trip Verification')
 
 const originalRequest = openaiToolRequest
-const universal1 = toUniversal("openai", originalRequest as any)
+const universal1 = toUniversal("openai", originalRequest)
 const reconstructed = fromUniversal("openai", universal1)
 
 // Check if tool structure is preserved

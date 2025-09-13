@@ -205,6 +205,22 @@ export type UniversalBody<TProvider extends ProviderType = ProviderType> = {
     logprobs?: boolean
     top_logprobs?: number
 
+    // Optional typed OpenAI sub-object for Responses-specific params (still optional)
+    openai?: {
+      store?: boolean
+      previous_response_id?: string
+      include?: unknown[]
+      text?: unknown
+      parallel_tool_calls?: boolean
+      service_tier?: "auto" | "default" | "flex" | "scale" | "priority"
+      truncation?: "auto" | "disabled"
+      background?: boolean
+      user?: string
+      metadata?: Record<string, unknown>
+      responses_builtin_tools?: unknown[]
+      target?: "responses" | "chat"
+    }
+
     // Preserve any unknown parameters
     [key: string]: unknown
   }

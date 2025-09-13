@@ -5,16 +5,16 @@
  * for multi-provider support, intelligent routing, and observability.
  */
 
-import * as express from 'express'
+import express, { Request, Response } from 'express'
+import type OpenAI from 'openai'
 import { 
   toUniversal, 
-  fromUniversal, 
-  detectProvider, 
   translateBetweenProviders,
   countUniversalTokens,
   getModelCosts,
   createObservabilityData,
-  buildUniversalError
+  buildUniversalError,
+  OpenAIChatBody
 } from '../src'
 
 interface ConversationMessage {
@@ -31,7 +31,7 @@ interface Conversation {
   id: string
   userId: string
   messages: ConversationMessage[]
-  provider: string
+  provider: 'openai' | 'anthropic' | 'google'
   model: string
   config: ChatConfig
   metadata: {
@@ -47,7 +47,7 @@ interface ChatConfig {
   maxTokens: number
   systemPrompt: string
   enableFallback: boolean
-  preferredProviders: string[]
+  preferredProviders: Array<'openai' | 'anthropic' | 'google'>
   costThreshold?: number
   enableObservability: boolean
 }
@@ -127,7 +127,7 @@ class ProductionChatbotService {
     conversationId: string,
     userMessage: string,
     options: { 
-      forceProvider?: string
+      forceProvider?: 'openai' | 'anthropic' | 'google'
       enableImages?: boolean
       imageData?: string
     } = {}
@@ -172,38 +172,32 @@ class ProductionChatbotService {
     
     conversation.messages.push(userMsg)
     
-    let selectedProvider = options.forceProvider || conversation.provider
+    let selectedProvider: 'openai' | 'anthropic' | 'google' = options.forceProvider || conversation.provider
     let fallbackUsed = false
     let response: string = ''
     let tokens = 0
     let cost = 0
     
     // Prepare request
-    const messages = conversation.messages.map(msg => ({
-      role: msg.role,
+    const messages: OpenAI.Chat.ChatCompletionMessageParam[] = conversation.messages.map(msg => ({
+      role: msg.role as 'user' | 'assistant' | 'system',
       content: msg.content
     }))
     
     // Add image if provided
-    let requestContent
+    let requestContent: OpenAI.Chat.ChatCompletionContentPart[] | undefined
     if (options.enableImages && options.imageData) {
       requestContent = [
         { type: 'text', text: userMessage },
-        { 
-          type: 'image_url', 
-          image_url: { 
-            url: `data:image/jpeg;base64,${options.imageData}`,
-            detail: 'auto'
-          }
-        }
+        { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${options.imageData}`, detail: 'auto' } }
       ]
       // Update the last message to include image
       messages[messages.length - 1].content = requestContent
     }
     
-    const baseRequest = {
+    const baseRequest: OpenAIChatBody = {
       model: this.getModelForProvider(selectedProvider),
-      messages: messages,
+      messages,
       temperature: conversation.config.temperature,
       max_tokens: conversation.config.maxTokens
     }
@@ -252,10 +246,11 @@ class ProductionChatbotService {
         break
         
       } catch (error) {
-        console.log(`❌ Provider ${provider} failed: ${error.message}`)
+        const message = error instanceof Error ? error.message : String(error)
+        console.log(`❌ Provider ${provider} failed: ${message}`)
         
         // Mark provider as unhealthy if it's a server error
-        if (error.message.includes('server') || error.message.includes('500')) {
+        if (message.includes('server') || message.includes('500')) {
           this.markProviderUnhealthy(provider)
         }
         
@@ -290,13 +285,19 @@ class ProductionChatbotService {
     
     // Generate observability data
     if (conversation.config.enableObservability) {
-      const observabilityData = createObservabilityData(
-        toUniversal('openai', baseRequest),
-        { inputTokens: tokens, outputTokens: 50 },
+      const universal = toUniversal('openai', baseRequest)
+      const tokenCounts = countUniversalTokens(universal)
+      const observabilityData = await createObservabilityData(
+        tokenCounts.inputTokens,
+        tokens,
         'openai',
         this.getModelForProvider(selectedProvider),
-        Date.now(),
-        'completed'
+        false,
+        {
+          multimodalContentCount: tokenCounts.multimodalContentCount,
+          toolCallsCount: tokenCounts.toolCallsCount,
+          estimatedOutputTokens: tokenCounts.estimatedOutputTokens
+        }
       )
       console.log(`📊 Observability:`, observabilityData)
     }
@@ -374,8 +375,8 @@ class ProductionChatbotService {
   }
   
   // Helper methods
-  private selectOptimalProvider(config: ChatConfig): string {
-    const healthyProviders = config.preferredProviders.filter(p => this.isProviderHealthy(p))
+  private selectOptimalProvider(config: ChatConfig): 'openai' | 'anthropic' | 'google' {
+    const healthyProviders = config.preferredProviders.filter(p => this.isProviderHealthy(p)) as Array<'openai' | 'anthropic' | 'google'>
     
     if (healthyProviders.length === 0) {
       return config.preferredProviders[0] // Fallback to first preferred
@@ -385,13 +386,13 @@ class ProductionChatbotService {
     return healthyProviders[Math.floor(Math.random() * healthyProviders.length)]
   }
   
-  private getModelForProvider(provider: string): string {
-    const models = {
+  private getModelForProvider(provider: 'openai' | 'anthropic' | 'google'): string {
+    const models: Record<'openai' | 'anthropic' | 'google', string> = {
       openai: 'gpt-4',
       anthropic: 'claude-3-opus-20240229',
       google: 'gemini-1.5-pro'
     }
-    return models[provider] || 'gpt-4'
+    return models[provider]
   }
   
   private checkRateLimit(userId: string): boolean {
@@ -442,9 +443,9 @@ class ProductionChatbotService {
     }, 30000) // Every 30 seconds
   }
   
-  private calculateCost(tokens: any, modelCosts: any): number {
+  private calculateCost(tokens: { inputTokens: number; estimatedOutputTokens?: number }, modelCosts: { inputCost: number; outputCost: number }): number {
     const inputCost = (tokens.inputTokens / 1000) * (modelCosts.inputCost || 0.001)
-    const outputCost = (tokens.estimatedOutputTokens / 1000) * (modelCosts.outputCost || 0.002)
+    const outputCost = ((tokens.estimatedOutputTokens || 0) / 1000) * (modelCosts.outputCost || 0.002)
     return inputCost + outputCost
   }
   
@@ -477,30 +478,32 @@ function createChatbotAPI() {
   app.use(express.json())
   
   // Create conversation
-  app.post('/conversations', async (req, res) => {
+  app.post('/conversations', async (req: Request, res: Response) => {
     try {
       const { userId, config } = req.body
       const result = await chatService.createConversation(userId, config)
       res.json(result)
     } catch (error) {
-      res.status(500).json({ error: error.message })
+      const message = error instanceof Error ? error.message : String(error)
+      res.status(500).json({ error: message })
     }
   })
   
   // Send message
-  app.post('/conversations/:id/messages', async (req, res) => {
+  app.post('/conversations/:id/messages', async (req: Request, res: Response) => {
     try {
       const { id } = req.params
       const { message, options } = req.body
       const result = await chatService.sendMessage(id, message, options)
       res.json(result)
     } catch (error) {
-      res.status(500).json({ error: error.message })
+      const message = error instanceof Error ? error.message : String(error)
+      res.status(500).json({ error: message })
     }
   })
   
   // Get conversation
-  app.get('/conversations/:id', (req, res) => {
+  app.get('/conversations/:id', (req: Request, res: Response) => {
     const { id } = req.params
     const conversation = chatService.getConversation(id)
     
@@ -512,7 +515,7 @@ function createChatbotAPI() {
   })
   
   // Get conversation stats
-  app.get('/conversations/:id/stats', (req, res) => {
+  app.get('/conversations/:id/stats', (req: Request, res: Response) => {
     const { id } = req.params
     const stats = chatService.getConversationStats(id)
     
@@ -524,7 +527,7 @@ function createChatbotAPI() {
   })
   
   // Update conversation config
-  app.patch('/conversations/:id/config', (req, res) => {
+  app.patch('/conversations/:id/config', (req: Request, res: Response) => {
     const { id } = req.params
     const { config } = req.body
     const success = chatService.updateConversationConfig(id, config)
@@ -571,7 +574,8 @@ async function demonstrateProductionChatbot() {
       console.log(`📊 Metadata: Provider=${response.metadata.provider}, Tokens=${response.metadata.tokens}, Cost=$${response.metadata.cost.toFixed(4)}, Latency=${response.metadata.latency}ms`)
       console.log(`🔄 Fallback used: ${response.metadata.fallbackUsed}\n`)
     } catch (error) {
-      console.log(`❌ Error: ${error.message}\n`)
+      const message = error instanceof Error ? error.message : String(error)
+      console.log(`❌ Error: ${message}\n`)
     }
   }
   

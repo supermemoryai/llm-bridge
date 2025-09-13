@@ -81,10 +81,10 @@ describe('Message Injection and Conversion', () => {
     }
 
     // Mock global fetch
-    global.fetch = mockFetch
+    ;(globalThis as any).fetch = mockFetch
 
     try {
-      const response = await handleUniversalRequest(
+      await handleUniversalRequest(
         targetUrl,
         originalBody,
         headers,
@@ -195,7 +195,7 @@ describe('Message Injection and Conversion', () => {
       })
     }
 
-    global.fetch = mockFetch
+    ;(globalThis as any).fetch = mockFetch
 
     try {
       await handleUniversalRequest(
