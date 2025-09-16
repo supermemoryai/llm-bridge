@@ -125,7 +125,7 @@ export function googleToUniversal(body: GeminiBody): UniversalBody<"google"> {
 
   // Extract tools from function declarations
   const tools: UniversalTool[] = []
-  if (body.tools) {
+  if (body.tools && Array.isArray(body.tools)) {
     for (const tool of body.tools) {
       if ("functionDeclarations" in tool && tool.functionDeclarations) {
         for (const fn of tool.functionDeclarations) {
@@ -179,19 +179,19 @@ export function googleToUniversal(body: GeminiBody): UniversalBody<"google"> {
 
 function hasMessagesBeenModified(universal: UniversalBody<"google">): boolean {
   if (!universal._original?.raw) return true
-  
+
   const originalBody = universal._original.raw as GeminiBody
   const originalMessages = originalBody.contents || []
-  
+
   // Check if message count changed
   if (originalMessages.length !== universal.messages.length) return true
-  
+
   // Check if any messages have contextInjection metadata (indicates injection)
-  const hasInjectedMessages = universal.messages.some(m => 
-    m.metadata.contextInjection || 
+  const hasInjectedMessages = universal.messages.some(m =>
+    m.metadata.contextInjection ||
     !m.metadata.originalIndex // New messages without originalIndex
   )
-  
+
   return hasInjectedMessages
 }
 
@@ -292,7 +292,7 @@ export function universalToGoogle(
 
   // Add system instruction if present
   const systemParts: any[] = []
-  
+
   // Add system from universal.system field
   if (universal.system) {
     const systemContent =
@@ -302,7 +302,7 @@ export function universalToGoogle(
 
     systemParts.push({ text: systemContent })
   }
-  
+
   // Add system messages from messages array
   if (systemMessages.length > 0) {
     for (const systemMsg of systemMessages) {
@@ -314,7 +314,7 @@ export function universalToGoogle(
       }
     }
   }
-  
+
   if (systemParts.length > 0) {
     result.systemInstruction = {
       parts: systemParts,
