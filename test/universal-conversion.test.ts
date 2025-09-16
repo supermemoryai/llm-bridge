@@ -613,7 +613,7 @@ describe("Universal Format Conversion", () => {
       expect(converted.contents[0].role).toBe("user")
     })
 
-    test("should throw error for invalid _original.raw format", () => {
+    test("should handle invalid _original.raw format gracefully", () => {
       const universalBody = {
         _original: {
           provider: "google",
@@ -626,7 +626,7 @@ describe("Universal Format Conversion", () => {
               {
                 _original: {
                   provider: "google",
-                  raw: "Invalid string format", // This should be an object with text property
+                  raw: "Invalid string format", // This is a string but should be an object with text property
                 },
                 text: "Hello",
                 type: "text" as const,
@@ -645,9 +645,14 @@ describe("Universal Format Conversion", () => {
         temperature: 0.7,
       }
 
-      expect(() => fromUniversal("google", universalBody as any)).toThrow(
-        /Invalid _original\.raw format for Google provider\. Expected object with 'text' property, got string/
-      )
+      // Should not throw an error, but gracefully fall back to using the universal content
+      const result = fromUniversal("google", universalBody as any)
+
+      expect(result).toBeDefined()
+      expect(result.contents).toHaveLength(1)
+      expect(result.contents[0].parts[0]).toEqual({ text: "Hello" })
+      expect(result.generationConfig?.maxOutputTokens).toBe(4096)
+      expect(result.generationConfig?.temperature).toBe(0.7)
     })
 
     test("should work with helper functions (no _original needed)", () => {

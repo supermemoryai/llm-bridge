@@ -211,21 +211,14 @@ export function universalToGoogle(
   const contents = regularMessages.map((msg) => ({
     parts: msg.content.map((content) => {
       if (content._original?.provider === "google") {
-        // Validate that _original.raw is properly formatted for Google
+        // Try to use the original format if it's valid for Google
         const originalRaw = content._original.raw
-        if (typeof originalRaw === 'string') {
-          throw new Error(
-            `Invalid _original.raw format for Google provider. Expected object with 'text' property, got string: "${originalRaw}". ` +
-            `Remove the _original field and let the library auto-generate it, or use format: { text: "${originalRaw}" }`
-          )
-        }
         if (typeof originalRaw === 'object' && originalRaw !== null && 'text' in originalRaw) {
           return originalRaw
         }
-        // If _original.raw exists but is not valid, throw error
-        throw new Error(
-          `Invalid _original.raw format for Google provider. Expected object with 'text' property, got: ${JSON.stringify(originalRaw)}`
-        )
+        // If _original.raw is not in the expected Google format (e.g., it's a string or invalid object),
+        // gracefully fall through to generate the format from the universal content
+        // This handles cases where context injection creates _original fields with string values
       }
 
       if (content.type === "text") {
