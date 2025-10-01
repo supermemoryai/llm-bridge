@@ -123,11 +123,12 @@ describe("Universal Format Conversion", () => {
         location: "San Francisco",
       })
 
-      // Check tool result (OpenAI format keeps it as text content with metadata)
-      expect(universal.messages[1].content[0].type).toBe("text")
-      expect(universal.messages[1].content[0].text).toBe(
+      // Check tool result (converted to tool_result content type)
+      expect(universal.messages[1].content[0].type).toBe("tool_result")
+      expect(universal.messages[1].content[0].tool_result?.result).toBe(
         '{"temperature": 72, "condition": "sunny"}',
       )
+      expect(universal.messages[1].content[0].tool_result?.tool_call_id).toBe("call_123")
       expect(universal.messages[1].metadata.tool_call_id).toBe("call_123")
 
       // Check tools definition

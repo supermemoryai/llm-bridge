@@ -142,10 +142,28 @@ export function openaiToUniversal(body: OpenAIBody): UniversalBody<"openai"> {
         baseMessage.tool_calls = parseOpenAIToolCalls(msg.tool_calls)
       }
 
-      // Handle tool responses
+      // Handle tool responses - convert to tool_result content
       if (msg.role === "tool") {
         const toolMsg = msg as OpenAI.Chat.ChatCompletionToolMessageParam
         baseMessage.metadata.tool_call_id = toolMsg.tool_call_id
+        baseMessage.metadata.name = toolMsg.name
+
+        // Convert content to tool_result format
+        const contentString = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content)
+        baseMessage.content = [
+          {
+            type: "tool_result",
+            tool_result: {
+              tool_call_id: toolMsg.tool_call_id,
+              name: toolMsg.name || "",
+              result: contentString,
+            },
+            _original: {
+              provider: "openai",
+              raw: msg.content,
+            },
+          },
+        ]
       }
 
       return baseMessage
@@ -264,6 +282,10 @@ export function universalToOpenAI(
     } else if (msg.content.length === 1 && msg.content[0]?.type === "text") {
       // Simple text message
       openaiMessage.content = msg.content[0]?.text || ""
+    } else if (msg.content.length === 1 && msg.content[0]?.type === "tool_result") {
+      // Tool result content - OpenAI expects string content for tool messages
+      const result = msg.content[0]?.tool_result?.result
+      openaiMessage.content = typeof result === "string" ? result : JSON.stringify(result)
     } else {
       // Complex content - reconstruct each part
       openaiMessage.content = msg.content.map((content) => {
