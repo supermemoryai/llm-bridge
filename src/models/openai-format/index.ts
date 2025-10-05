@@ -144,7 +144,7 @@ export function openaiToUniversal(body: OpenAIBody): UniversalBody<"openai"> {
 
       // Handle tool responses - convert to tool_result content
       if (msg.role === "tool") {
-        const toolMsg = msg as OpenAI.Chat.ChatCompletionToolMessageParam
+        const toolMsg = msg as any // OpenAI.Chat.ChatCompletionToolMessageParam
         baseMessage.metadata.tool_call_id = toolMsg.tool_call_id
         baseMessage.metadata.name = toolMsg.name
 
