@@ -1,6 +1,6 @@
 {
   "name": "llm-bridge",
-  "version": "1.0.13",
+  "version": "1.1.0",
   "description": "The Universal Translation Layer for Large Language Model APIs",
   "publishConfig": {
     "access": "public"
