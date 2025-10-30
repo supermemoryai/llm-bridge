@@ -5,7 +5,7 @@ import {
   buildContinuationRequest,
   NormalizedToolCall,
 } from "../src/tools"
-import { toUniversal } from "../src/models"
+import { toUniversal, fromUniversal } from "../src/models"
 
 describe("OpenAI Tool Calls", () => {
   describe("extractToolCallsFromResponse", () => {
@@ -594,4 +594,46 @@ describe("OpenAI Tool Calls", () => {
       expect(resultContent.condition).toBe("partly cloudy")
     })
   })
+
+  describe("Content Format Preservation", () => {
+    it("should preserve nested content arrays when converting back to OpenAI format (fixes object-instead-of-array bug)", () => {
+      const requestBody = {
+        messages: [
+          {
+            content: [
+              {
+                text: "My name is Dave, and I like strawberries.",
+                type: "text",
+              },
+            ],
+            role: "user",
+          },
+        ],
+        model: "gpt-4o",
+      }
+
+      const universal = toUniversal("openai", requestBody as any)
+      const converted = fromUniversal("openai", universal)
+
+      const userMessage = converted.messages.find((m: any) => m.role === "user")
+      
+      // OpenAI API requires content to be string | ContentPart[] (array), NOT a plain object
+      expect(userMessage).toBeDefined()
+      expect(userMessage!.content).not.toBeNull()
+      
+      // Content must be string or array, not an object
+      expect(
+        typeof userMessage!.content === "string" || Array.isArray(userMessage!.content)
+      ).toBe(true)
+      
+      // Verify it's specifically an array (as the original was)
+      expect(Array.isArray(userMessage!.content)).toBe(true)
+      expect(userMessage!.content[0]).toEqual({
+        text: "My name is Dave, and I like strawberries.",
+        type: "text",
+      })
+    })
+  })
+
+  
 })

@@ -273,8 +273,20 @@ export function universalToOpenAI(
     ) {
       // Perfect reconstruction from original - but only if it's valid OpenAI content
       const originalContent = msg.content[0]?._original?.raw
-      if (originalContent) {
-        openaiMessage.content = originalContent as any
+      if (originalContent !== null && originalContent !== undefined) {
+        if (typeof originalContent === "string") {
+          openaiMessage.content = originalContent
+        } 
+        else if (Array.isArray(originalContent)) {
+          openaiMessage.content = originalContent as any
+        } 
+        else if (typeof originalContent === "object" && originalContent !== null) {
+          openaiMessage.content = [originalContent] as any
+        } 
+        // Fallback to universal format if original is not valid OpenAI content
+        else {
+          openaiMessage.content = msg.content[0]?.text || ""
+        }
       } else {
         // Fallback to universal format if original is not valid OpenAI content
         openaiMessage.content = msg.content[0]?.text || ""
