@@ -34,10 +34,6 @@ LLM Bridge provides a **universal format** that acts as a common language betwee
 
 ```bash
 npm install llm-bridge
-# or
-yarn add llm-bridge
-# or
-pnpm add llm-bridge
 ```
 
 ## 🔧 Quick Start
