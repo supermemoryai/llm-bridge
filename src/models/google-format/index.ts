@@ -125,7 +125,7 @@ export function googleToUniversal(body: GeminiBody): UniversalBody<"google"> {
 
   // Extract tools from function declarations
   const tools: UniversalTool[] = []
-  if (body.tools) {
+  if (body.tools && Array.isArray(body.tools)) {
     for (const tool of body.tools) {
       if ("functionDeclarations" in tool && tool.functionDeclarations) {
         for (const fn of tool.functionDeclarations) {
@@ -179,19 +179,19 @@ export function googleToUniversal(body: GeminiBody): UniversalBody<"google"> {
 
 function hasMessagesBeenModified(universal: UniversalBody<"google">): boolean {
   if (!universal._original?.raw) return true
-  
+
   const originalBody = universal._original.raw as GeminiBody
   const originalMessages = originalBody.contents || []
-  
+
   // Check if message count changed
   if (originalMessages.length !== universal.messages.length) return true
-  
+
   // Check if any messages have contextInjection metadata (indicates injection)
-  const hasInjectedMessages = universal.messages.some(m => 
-    m.metadata.contextInjection || 
+  const hasInjectedMessages = universal.messages.some(m =>
+    m.metadata.contextInjection ||
     !m.metadata.originalIndex // New messages without originalIndex
   )
-  
+
   return hasInjectedMessages
 }
 
@@ -211,21 +211,14 @@ export function universalToGoogle(
   const contents = regularMessages.map((msg) => ({
     parts: msg.content.map((content) => {
       if (content._original?.provider === "google") {
-        // Validate that _original.raw is properly formatted for Google
+        // Try to use the original format if it's valid for Google
         const originalRaw = content._original.raw
-        if (typeof originalRaw === 'string') {
-          throw new Error(
-            `Invalid _original.raw format for Google provider. Expected object with 'text' property, got string: "${originalRaw}". ` +
-            `Remove the _original field and let the library auto-generate it, or use format: { text: "${originalRaw}" }`
-          )
-        }
         if (typeof originalRaw === 'object' && originalRaw !== null && 'text' in originalRaw) {
           return originalRaw
         }
-        // If _original.raw exists but is not valid, throw error
-        throw new Error(
-          `Invalid _original.raw format for Google provider. Expected object with 'text' property, got: ${JSON.stringify(originalRaw)}`
-        )
+        // If _original.raw is not in the expected Google format (e.g., it's a string or invalid object),
+        // gracefully fall through to generate the format from the universal content
+        // This handles cases where context injection creates _original fields with string values
       }
 
       if (content.type === "text") {
@@ -292,7 +285,7 @@ export function universalToGoogle(
 
   // Add system instruction if present
   const systemParts: any[] = []
-  
+
   // Add system from universal.system field
   if (universal.system) {
     const systemContent =
@@ -302,7 +295,7 @@ export function universalToGoogle(
 
     systemParts.push({ text: systemContent })
   }
-  
+
   // Add system messages from messages array
   if (systemMessages.length > 0) {
     for (const systemMsg of systemMessages) {
@@ -314,7 +307,7 @@ export function universalToGoogle(
       }
     }
   }
-  
+
   if (systemParts.length > 0) {
     result.systemInstruction = {
       parts: systemParts,
