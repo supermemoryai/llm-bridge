@@ -5,8 +5,20 @@ import {
   createObservabilityData,
   extractModelFromUniversal,
 } from "./models/helpers"
+import {
+  parseOpenAIStream,
+  parseAnthropicStream,
+  parseGoogleStream,
+  parseOpenAIResponsesStream,
+} from "./streaming/parsers"
+import {
+  emitOpenAIStream,
+  emitAnthropicStream,
+  emitGoogleStream,
+} from "./streaming/emitters"
 import { ObservabilityData } from "./types/observability"
-import { UniversalBody } from "./types/universal"
+import { ProviderType } from "./types/providers"
+import { UniversalBody, UniversalStreamEvent } from "./types/universal"
 
 export async function handleUniversalRequest(
   targetUrl: string,
@@ -47,14 +59,11 @@ export async function handleUniversalRequest(
   // Count final tokens
   const finalAnalysis = countUniversalTokens(editedRequest)
 
-  console.log('[LLM BRIDGE] EDITED REQUEST', JSON.stringify(editedRequest, null, 2))
-
   // Translate back to provider format
   const translatedBody = fromUniversal(provider, editedRequest as any)
 
   delete headers["Content-Type"]
 
-  console.log(`LLM BRIDGE translated body ${JSON.stringify(translatedBody, null, 2)}`)
   // Make the request to the provider
   const response = await fetch(targetUrl, {
     body: JSON.stringify(translatedBody),
@@ -84,4 +93,79 @@ export async function handleUniversalRequest(
     observabilityData,
     response,
   }
+}
+
+/**
+ * Get the appropriate SSE stream parser for a given provider.
+ */
+function getParser(
+  provider: ProviderType,
+): (stream: ReadableStream) => AsyncGenerator<UniversalStreamEvent> {
+  switch (provider) {
+    case "openai":
+      return parseOpenAIStream
+    case "anthropic":
+      return parseAnthropicStream
+    case "google":
+      return parseGoogleStream
+    case "openai-responses":
+      return parseOpenAIResponsesStream
+    default:
+      throw new Error(`Unsupported source provider for streaming: ${provider}`)
+  }
+}
+
+/**
+ * Get the appropriate SSE stream emitter for a given provider.
+ */
+function getEmitter(
+  provider: ProviderType,
+): (events: AsyncIterable<UniversalStreamEvent>) => ReadableStream {
+  switch (provider) {
+    case "openai":
+    case "openai-responses":
+      return emitOpenAIStream
+    case "anthropic":
+      return emitAnthropicStream
+    case "google":
+      return emitGoogleStream
+    default:
+      throw new Error(`Unsupported target provider for streaming: ${provider}`)
+  }
+}
+
+/**
+ * Handle streaming translation between providers.
+ *
+ * Takes an SSE stream from the source provider, parses it into universal
+ * stream events, optionally transforms those events, and re-emits them
+ * in the target provider's SSE format.
+ *
+ * @param stream - The source SSE ReadableStream from the provider response
+ * @param sourceProvider - The provider that produced the stream
+ * @param targetProvider - The provider format to emit
+ * @param transform - Optional async generator transform to apply to universal events
+ * @returns A ReadableStream of SSE text in the target provider's format
+ */
+export function handleUniversalStreamRequest(
+  stream: ReadableStream,
+  sourceProvider: ProviderType,
+  targetProvider: ProviderType,
+  transform?: (
+    events: AsyncIterable<UniversalStreamEvent>,
+  ) => AsyncIterable<UniversalStreamEvent>,
+): ReadableStream {
+  const parser = getParser(sourceProvider)
+  const emitter = getEmitter(targetProvider)
+
+  // Parse the source stream into universal events
+  let universalEvents: AsyncIterable<UniversalStreamEvent> = parser(stream)
+
+  // Apply optional transform
+  if (transform) {
+    universalEvents = transform(universalEvents)
+  }
+
+  // Emit in target format
+  return emitter(universalEvents)
 }

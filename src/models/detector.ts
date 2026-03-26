@@ -9,12 +9,19 @@ export function detectProvider(targetUrl: string, body: unknown): ProviderType {
   }
 
   // Google format: `contents` with `parts`, `systemInstruction`, `generationConfig`
+  // Also covers Vertex AI endpoints
   if (
     hostname.includes("generativelanguage.googleapis.com") ||
     hostname.includes("aiplatform.googleapis.com") ||
     hostname.includes("googleapis.com")
   ) {
     return "google"
+  }
+
+  // AWS Bedrock Runtime — defaults to Anthropic format (most common for Claude models)
+  // Note: Bedrock also supports other model providers, but Claude is the primary use case
+  if (hostname.includes("bedrock-runtime") || hostname.includes("bedrock.")) {
+    return "anthropic"
   }
 
   // Body-based detection for when URL isn't clear
@@ -43,6 +50,17 @@ export function detectProvider(targetUrl: string, body: unknown): ProviderType {
     ) {
       return "google"
     }
+
+    // OpenAI Responses API format indicators
+    if (bodyObj.input !== undefined && !bodyObj.messages && !bodyObj.contents) {
+      return "openai-responses"
+    }
+  }
+
+  // OpenAI Responses API URL — match /v1/responses or path ending with /responses
+  const urlPath = new URL(targetUrl).pathname
+  if (urlPath === "/v1/responses" || urlPath.endsWith("/responses")) {
+    return "openai-responses"
   }
 
   // Default to OpenAI format (used by OpenAI, Azure, Together, Groq, Fireworks,
