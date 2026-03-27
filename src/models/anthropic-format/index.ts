@@ -4,6 +4,7 @@ import {
   UniversalContent,
   UniversalMessage,
   UniversalRole,
+  UniversalSystemPrompt,
   UniversalTool,
 } from "../../types/universal"
 import { AnthropicBody } from "../../types/providers"
@@ -28,6 +29,7 @@ function parseAnthropicContent(
         return {
           _original: { provider: "anthropic", raw: block },
           thinking: (block as any).thinking,
+          signature: (block as any).signature,
           type: "thinking" as const,
         }
       }
@@ -182,7 +184,7 @@ export function anthropicToUniversal(
     }) || []
 
   // Handle system prompt with cache control
-  let systemPrompt: string | any = undefined
+  let systemPrompt: string | UniversalSystemPrompt | undefined = undefined
   if (body.system) {
     if (typeof body.system === "string") {
       systemPrompt = body.system
@@ -276,16 +278,11 @@ export function universalToAnthropic(
           }
         }
 
-        if (typeof content === "string") {
-          return {
-            text: content,
-            type: "text",
-          }
-        }
         if (content.type === "thinking") {
           return {
             type: "thinking",
             thinking: content.thinking || "",
+            ...(content.signature ? { signature: content.signature } : {}),
           }
         }
         if (content.type === "redacted_thinking") {

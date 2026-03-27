@@ -414,6 +414,270 @@ export function emitAnthropicStream(
 }
 
 /**
+ * Convert universal stream events to OpenAI Responses API SSE format.
+ *
+ * The Responses API uses semantic event types (response.created,
+ * response.output_text.delta, etc.) rather than the Chat Completions
+ * chunk format.
+ */
+export function emitOpenAIResponsesStream(
+  events: AsyncIterable<UniversalStreamEvent>,
+): ReadableStream {
+  return new ReadableStream({
+    async start(controller) {
+      let responseId = ""
+      let model = ""
+      let outputIndex = 0
+      let contentIndex = 0
+      // Track accumulated text per output item for "done" events
+      let accumulatedText = ""
+      // Track accumulated arguments per tool call
+      const toolCallArgs = new Map<string, { name: string; args: string; outputIndex: number }>()
+
+      try {
+        for await (const event of events) {
+          switch (event.type) {
+            case "message_start": {
+              responseId = event.id
+              model = event.model
+              const data = {
+                type: "response.created",
+                response: {
+                  id: responseId,
+                  object: "response",
+                  status: "in_progress",
+                  model,
+                  output: [],
+                },
+              }
+              controller.enqueue(
+                sseEncode(`event: response.created\ndata: ${JSON.stringify(data)}\n\n`),
+              )
+              // Emit output_item.added for the first text output item
+              const itemAddedData = {
+                type: "response.output_item.added",
+                output_index: outputIndex,
+                item: {
+                  type: "message",
+                  id: `item_${outputIndex}`,
+                  role: "assistant",
+                  content: [],
+                },
+              }
+              controller.enqueue(
+                sseEncode(`event: response.output_item.added\ndata: ${JSON.stringify(itemAddedData)}\n\n`),
+              )
+              accumulatedText = ""
+              contentIndex = 0
+              break
+            }
+
+            case "content_delta": {
+              const text = event.delta.text || event.delta.thinking || ""
+              if (text) {
+                accumulatedText += text
+                const deltaData = {
+                  type: "response.output_text.delta",
+                  output_index: outputIndex,
+                  content_index: contentIndex,
+                  delta: text,
+                }
+                controller.enqueue(
+                  sseEncode(`event: response.output_text.delta\ndata: ${JSON.stringify(deltaData)}\n\n`),
+                )
+              }
+              break
+            }
+
+            case "tool_call_start": {
+              // Close the current text output item if we had text
+              if (accumulatedText) {
+                const textDoneData = {
+                  type: "response.output_text.done",
+                  output_index: outputIndex,
+                  content_index: contentIndex,
+                  text: accumulatedText,
+                }
+                controller.enqueue(
+                  sseEncode(`event: response.output_text.done\ndata: ${JSON.stringify(textDoneData)}\n\n`),
+                )
+                // Close the message output item
+                const itemDoneData = {
+                  type: "response.output_item.done",
+                  output_index: outputIndex,
+                  item: {
+                    type: "message",
+                    id: `item_${outputIndex}`,
+                    role: "assistant",
+                    content: [{ type: "output_text", text: accumulatedText }],
+                  },
+                }
+                controller.enqueue(
+                  sseEncode(`event: response.output_item.done\ndata: ${JSON.stringify(itemDoneData)}\n\n`),
+                )
+                outputIndex++
+                accumulatedText = ""
+              }
+
+              // Add function call output item
+              const fcOutputIndex = outputIndex++
+              toolCallArgs.set(event.tool_call.id, {
+                name: event.tool_call.name,
+                args: "",
+                outputIndex: fcOutputIndex,
+              })
+              const fcAddedData = {
+                type: "response.output_item.added",
+                output_index: fcOutputIndex,
+                item: {
+                  type: "function_call",
+                  id: `fc_${fcOutputIndex}`,
+                  call_id: event.tool_call.id,
+                  name: event.tool_call.name,
+                  arguments: "",
+                  status: "in_progress",
+                },
+              }
+              controller.enqueue(
+                sseEncode(`event: response.output_item.added\ndata: ${JSON.stringify(fcAddedData)}\n\n`),
+              )
+              break
+            }
+
+            case "tool_call_delta": {
+              const tc = toolCallArgs.get(event.tool_call.id)
+              if (tc) {
+                tc.args += event.tool_call.arguments_delta
+              }
+              const argDeltaData = {
+                type: "response.function_call_arguments.delta",
+                output_index: tc?.outputIndex ?? 0,
+                delta: event.tool_call.arguments_delta,
+              }
+              controller.enqueue(
+                sseEncode(`event: response.function_call_arguments.delta\ndata: ${JSON.stringify(argDeltaData)}\n\n`),
+              )
+              break
+            }
+
+            case "tool_call_end": {
+              const tc = toolCallArgs.get(event.tool_call.id)
+              if (tc) {
+                // Emit arguments done
+                const argDoneData = {
+                  type: "response.function_call_arguments.done",
+                  output_index: tc.outputIndex,
+                  arguments: tc.args,
+                }
+                controller.enqueue(
+                  sseEncode(`event: response.function_call_arguments.done\ndata: ${JSON.stringify(argDoneData)}\n\n`),
+                )
+                // Emit output item done
+                const itemDoneData = {
+                  type: "response.output_item.done",
+                  output_index: tc.outputIndex,
+                  item: {
+                    type: "function_call",
+                    id: `fc_${tc.outputIndex}`,
+                    call_id: event.tool_call.id,
+                    name: tc.name,
+                    arguments: tc.args,
+                    status: "completed",
+                  },
+                }
+                controller.enqueue(
+                  sseEncode(`event: response.output_item.done\ndata: ${JSON.stringify(itemDoneData)}\n\n`),
+                )
+                toolCallArgs.delete(event.tool_call.id)
+              }
+              break
+            }
+
+            case "message_end": {
+              // Close any remaining text output item
+              if (accumulatedText) {
+                const textDoneData = {
+                  type: "response.output_text.done",
+                  output_index: outputIndex,
+                  content_index: contentIndex,
+                  text: accumulatedText,
+                }
+                controller.enqueue(
+                  sseEncode(`event: response.output_text.done\ndata: ${JSON.stringify(textDoneData)}\n\n`),
+                )
+                const itemDoneData = {
+                  type: "response.output_item.done",
+                  output_index: outputIndex,
+                  item: {
+                    type: "message",
+                    id: `item_${outputIndex}`,
+                    role: "assistant",
+                    content: [{ type: "output_text", text: accumulatedText }],
+                  },
+                }
+                controller.enqueue(
+                  sseEncode(`event: response.output_item.done\ndata: ${JSON.stringify(itemDoneData)}\n\n`),
+                )
+                accumulatedText = ""
+              }
+
+              // Emit response.completed
+              const completedData: any = {
+                type: "response.completed",
+                response: {
+                  id: responseId,
+                  object: "response",
+                  status: event.stop_reason === "error" ? "failed" : "completed",
+                  model,
+                },
+              }
+              if (event.usage) {
+                completedData.response.usage = {
+                  input_tokens: event.usage.input_tokens,
+                  output_tokens: event.usage.output_tokens,
+                  total_tokens:
+                    event.usage.input_tokens + event.usage.output_tokens,
+                }
+              }
+              controller.enqueue(
+                sseEncode(`event: response.completed\ndata: ${JSON.stringify(completedData)}\n\n`),
+              )
+              break
+            }
+
+            case "error": {
+              const errorData = {
+                type: "error",
+                error: {
+                  message: event.error.message,
+                  code: event.error.code || "server_error",
+                },
+              }
+              controller.enqueue(
+                sseEncode(`event: error\ndata: ${JSON.stringify(errorData)}\n\n`),
+              )
+              break
+            }
+          }
+        }
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error ? err.message : "Unknown error"
+        const errorData = {
+          type: "error",
+          error: { message: errorMessage, code: "server_error" },
+        }
+        controller.enqueue(
+          sseEncode(`event: error\ndata: ${JSON.stringify(errorData)}\n\n`),
+        )
+      } finally {
+        controller.close()
+      }
+    },
+  })
+}
+
+/**
  * Convert universal stream events to Google Gemini SSE format.
  */
 export function emitGoogleStream(

@@ -83,6 +83,7 @@ export type UniversalContent = {
 
   // Thinking content (for extended thinking / reasoning)
   thinking?: string
+  signature?: string // Anthropic thinking block signature (required for multi-turn)
 
   // Media content - support all possible ways providers handle media
   media?: UniversalMediaContent

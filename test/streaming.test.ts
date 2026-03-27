@@ -7,6 +7,7 @@ import {
 } from "../src/streaming/parsers.js"
 import {
   emitOpenAIStream,
+  emitOpenAIResponsesStream,
   emitAnthropicStream,
   emitGoogleStream,
 } from "../src/streaming/emitters.js"
@@ -464,6 +465,133 @@ describe("Streaming Emitters", () => {
     })
   })
 
+  describe("OpenAI Responses emitter", () => {
+    it("should emit Responses API SSE format from universal events", async () => {
+      const events: UniversalStreamEvent[] = [
+        { type: "message_start", id: "resp_test", model: "gpt-4o" },
+        { type: "content_delta", delta: { text: "Hello" } },
+        { type: "content_delta", delta: { text: " world" } },
+        { type: "message_end", stop_reason: "completed", usage: { input_tokens: 10, output_tokens: 5 } },
+      ]
+
+      const stream = emitOpenAIResponsesStream(asyncIterableFromArray(events))
+      const output = await readStreamAsText(stream)
+
+      // Should use named event: lines (not just data:)
+      expect(output).toContain("event: response.created")
+      expect(output).toContain("event: response.output_text.delta")
+      expect(output).toContain("event: response.completed")
+
+      // Parse the response.created event
+      const lines = output.split("\n")
+      const createdDataLine = lines.find(
+        (l, i) =>
+          l.startsWith("data: ") &&
+          i > 0 &&
+          lines[i - 1] === "event: response.created"
+      )
+      expect(createdDataLine).toBeDefined()
+      const createdData = JSON.parse(createdDataLine!.slice(6))
+      expect(createdData.response.id).toBe("resp_test")
+      expect(createdData.response.model).toBe("gpt-4o")
+      expect(createdData.response.status).toBe("in_progress")
+
+      // Parse text deltas
+      const textDeltaLines = lines
+        .filter((l, i) =>
+          l.startsWith("data: ") &&
+          i > 0 &&
+          lines[i - 1] === "event: response.output_text.delta"
+        )
+        .map((l) => JSON.parse(l.slice(6)))
+      expect(textDeltaLines).toHaveLength(2)
+      expect(textDeltaLines[0].delta).toBe("Hello")
+      expect(textDeltaLines[1].delta).toBe(" world")
+
+      // Parse completed event
+      const completedDataLine = lines.find(
+        (l, i) =>
+          l.startsWith("data: ") &&
+          i > 0 &&
+          lines[i - 1] === "event: response.completed"
+      )
+      expect(completedDataLine).toBeDefined()
+      const completedData = JSON.parse(completedDataLine!.slice(6))
+      expect(completedData.response.status).toBe("completed")
+      expect(completedData.response.usage.input_tokens).toBe(10)
+      expect(completedData.response.usage.output_tokens).toBe(5)
+    })
+
+    it("should emit tool calls in Responses API format", async () => {
+      const events: UniversalStreamEvent[] = [
+        { type: "message_start", id: "resp_tools", model: "gpt-4o" },
+        { type: "tool_call_start", tool_call: { id: "call_abc", name: "get_weather" } },
+        { type: "tool_call_delta", tool_call: { id: "call_abc", arguments_delta: '{"loc":' } },
+        { type: "tool_call_delta", tool_call: { id: "call_abc", arguments_delta: '"SF"}' } },
+        { type: "tool_call_end", tool_call: { id: "call_abc" } },
+        { type: "message_end", stop_reason: "completed" },
+      ]
+
+      const stream = emitOpenAIResponsesStream(asyncIterableFromArray(events))
+      const output = await readStreamAsText(stream)
+
+      // Should have function call events
+      expect(output).toContain("event: response.output_item.added")
+      expect(output).toContain("event: response.function_call_arguments.delta")
+      expect(output).toContain("event: response.function_call_arguments.done")
+      expect(output).toContain("event: response.output_item.done")
+
+      // Parse the output_item.added for function_call
+      const lines = output.split("\n")
+      const fcAddedLines = lines
+        .filter((l, i) =>
+          l.startsWith("data: ") &&
+          i > 0 &&
+          lines[i - 1] === "event: response.output_item.added"
+        )
+        .map((l) => JSON.parse(l.slice(6)))
+      const fcAdded = fcAddedLines.find((d: any) => d.item?.type === "function_call")
+      expect(fcAdded).toBeDefined()
+      expect(fcAdded.item.call_id).toBe("call_abc")
+      expect(fcAdded.item.name).toBe("get_weather")
+
+      // Parse the arguments.done event
+      const argsDoneLine = lines.find(
+        (l, i) =>
+          l.startsWith("data: ") &&
+          i > 0 &&
+          lines[i - 1] === "event: response.function_call_arguments.done"
+      )
+      expect(argsDoneLine).toBeDefined()
+      const argsDone = JSON.parse(argsDoneLine!.slice(6))
+      expect(argsDone.arguments).toBe('{"loc":"SF"}')
+    })
+
+    it("should emit text followed by tool calls correctly", async () => {
+      const events: UniversalStreamEvent[] = [
+        { type: "message_start", id: "resp_mixed", model: "gpt-4o" },
+        { type: "content_delta", delta: { text: "Let me check." } },
+        { type: "tool_call_start", tool_call: { id: "call_1", name: "search" } },
+        { type: "tool_call_delta", tool_call: { id: "call_1", arguments_delta: '{"q":"test"}' } },
+        { type: "tool_call_end", tool_call: { id: "call_1" } },
+        { type: "message_end", stop_reason: "completed" },
+      ]
+
+      const stream = emitOpenAIResponsesStream(asyncIterableFromArray(events))
+      const output = await readStreamAsText(stream)
+
+      // Should have text done event before function call
+      expect(output).toContain("event: response.output_text.done")
+      // Text should be closed before function call starts
+      const textDoneIdx = output.indexOf("response.output_text.done")
+      const fcAddedIdx = output.indexOf("response.output_item.added")
+      // The first output_item.added is for the message, the second is for the function call
+      // Find the function_call one
+      const fcIdx = output.indexOf('"type":"function_call"')
+      expect(textDoneIdx).toBeLessThan(fcIdx)
+    })
+  })
+
   describe("Google emitter", () => {
     it("should emit Google SSE format from universal events", async () => {
       const events: UniversalStreamEvent[] = [
@@ -623,6 +751,95 @@ describe("Streaming Round-trip", () => {
     expect(output).toContain("get_time")
     expect(output).toContain("call_1")
     expect(output).toContain("call_2")
+  })
+
+  it("should round-trip OpenAI Responses stream: parse → universal → emit → parse", async () => {
+    // Create a Responses API SSE stream (trailing empty entry ensures final event is flushed)
+    const responsesSSE = [
+      `event: response.created\ndata: {"response":{"id":"resp_rt","model":"gpt-4o"}}`,
+      `event: response.output_item.added\ndata: {"output_index":0,"item":{"type":"message","id":"item_0","role":"assistant","content":[]}}`,
+      `event: response.output_text.delta\ndata: {"output_index":0,"content_index":0,"delta":"Round"}`,
+      `event: response.output_text.delta\ndata: {"output_index":0,"content_index":0,"delta":"-trip"}`,
+      `event: response.output_text.delta\ndata: {"output_index":0,"content_index":0,"delta":" test"}`,
+      `event: response.completed\ndata: {"response":{"id":"resp_rt","status":"completed","usage":{"input_tokens":8,"output_tokens":3}}}`,
+      ``,
+    ].join("\n\n")
+
+    // Step 1: Parse the original stream
+    const originalStream = createSSEStream(responsesSSE)
+    const universalEvents = await collectEvents(parseOpenAIResponsesStream(originalStream))
+
+    // Verify universal events
+    const msgStart = universalEvents.find((e: any) => e.type === "message_start")
+    expect(msgStart).toBeDefined()
+    expect(msgStart.id).toBe("resp_rt")
+
+    const deltas = universalEvents.filter((e: any) => e.type === "content_delta")
+    expect(deltas).toHaveLength(3)
+
+    const msgEnd = universalEvents.find((e: any) => e.type === "message_end")
+    expect(msgEnd).toBeDefined()
+    expect(msgEnd.usage).toEqual({ input_tokens: 8, output_tokens: 3 })
+
+    // Step 2: Emit back as Responses API format
+    const reEmittedStream = emitOpenAIResponsesStream(asyncIterableFromArray(universalEvents))
+    const reEmittedText = await readStreamAsText(reEmittedStream)
+
+    // Verify the re-emitted stream has correct event types
+    expect(reEmittedText).toContain("event: response.created")
+    expect(reEmittedText).toContain("event: response.output_text.delta")
+    expect(reEmittedText).toContain("event: response.completed")
+
+    // Step 3: Parse the re-emitted stream again
+    const reEmittedSSEStream = createSSEStream(reEmittedText)
+    const roundTripEvents = await collectEvents(parseOpenAIResponsesStream(reEmittedSSEStream))
+
+    // Verify round-trip preserves events
+    const rtMsgStart = roundTripEvents.find((e: any) => e.type === "message_start")
+    expect(rtMsgStart).toBeDefined()
+    expect(rtMsgStart.id).toBe("resp_rt")
+    expect(rtMsgStart.model).toBe("gpt-4o")
+
+    const rtDeltas = roundTripEvents.filter((e: any) => e.type === "content_delta")
+    expect(rtDeltas).toHaveLength(3)
+    expect(rtDeltas.map((d: any) => d.delta.text).join("")).toBe("Round-trip test")
+
+    const rtMsgEnd = roundTripEvents.find((e: any) => e.type === "message_end")
+    expect(rtMsgEnd).toBeDefined()
+    expect(rtMsgEnd.stop_reason).toBe("completed")
+    expect(rtMsgEnd.usage).toEqual({ input_tokens: 8, output_tokens: 3 })
+  })
+
+  it("should round-trip Responses API tool calls: parse → emit → parse", async () => {
+    const responsesSSE = [
+      `event: response.created\ndata: {"response":{"id":"resp_tc","model":"gpt-4o"}}`,
+      `event: response.output_item.added\ndata: {"output_index":0,"item":{"type":"function_call","call_id":"call_rt","name":"get_weather"}}`,
+      `event: response.function_call_arguments.delta\ndata: {"output_index":0,"delta":"{\\"city\\":"}`,
+      `event: response.function_call_arguments.delta\ndata: {"output_index":0,"delta":"\\"NYC\\"}"}`,
+      `event: response.output_item.done\ndata: {"output_index":0,"item":{"type":"function_call","call_id":"call_rt"}}`,
+      `event: response.completed\ndata: {"response":{"status":"completed","usage":{"input_tokens":15,"output_tokens":10}}}`,
+      ``,
+    ].join("\n\n")
+
+    // Parse original
+    const events = await collectEvents(parseOpenAIResponsesStream(createSSEStream(responsesSSE)))
+
+    // Re-emit
+    const reEmitted = await readStreamAsText(emitOpenAIResponsesStream(asyncIterableFromArray(events)))
+
+    // Parse again
+    const rtEvents = await collectEvents(parseOpenAIResponsesStream(createSSEStream(reEmitted)))
+
+    // Verify tool call preserved
+    const tcStart = rtEvents.find((e: any) => e.type === "tool_call_start")
+    expect(tcStart).toBeDefined()
+    expect(tcStart.tool_call.name).toBe("get_weather")
+
+    const tcDeltas = rtEvents.filter((e: any) => e.type === "tool_call_delta")
+    expect(tcDeltas.length).toBeGreaterThanOrEqual(1)
+
+    const tcEnd = rtEvents.find((e: any) => e.type === "tool_call_end")
+    expect(tcEnd).toBeDefined()
   })
 
   it("should handle OpenAI Responses parser with multiple concurrent function calls", async () => {

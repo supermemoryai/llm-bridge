@@ -13,6 +13,7 @@ import {
 } from "./streaming/parsers"
 import {
   emitOpenAIStream,
+  emitOpenAIResponsesStream,
   emitAnthropicStream,
   emitGoogleStream,
 } from "./streaming/emitters"
@@ -123,8 +124,9 @@ function getEmitter(
 ): (events: AsyncIterable<UniversalStreamEvent>) => ReadableStream {
   switch (provider) {
     case "openai":
-    case "openai-responses":
       return emitOpenAIStream
+    case "openai-responses":
+      return emitOpenAIResponsesStream
     case "anthropic":
       return emitAnthropicStream
     case "google":
