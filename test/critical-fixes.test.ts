@@ -540,3 +540,82 @@ describe("PR Fix #4: Anthropic emitter — thinking→text block index transitio
     expect(thinkingDeltas.every((d: any) => d.index === 0)).toBe(true)
   })
 })
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PR Fix #7: hasMessagesBeenModified falsy check on originalIndex
+// `!m.metadata.originalIndex` is true when originalIndex === 0 (first message),
+// causing the fast-path to be bypassed for ALL conversations.
+// Fix: use `m.metadata.originalIndex === undefined` instead.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("PR Fix #7: hasMessagesBeenModified originalIndex === 0 fast-path", () => {
+  it("OpenAI: unmodified conversation with originalIndex 0 uses fast-path", () => {
+    const originalBody = {
+      model: "gpt-4",
+      messages: [
+        { role: "user", content: "Hello" },
+      ],
+    }
+
+    const universal = toUniversal("openai", originalBody)
+    // Verify the first message got originalIndex: 0
+    expect(universal.messages[0].metadata.originalIndex).toBe(0)
+
+    // Convert back — should use fast-path and return the original body
+    const result = fromUniversal("openai", universal)
+    expect(result).toBe(originalBody) // Same reference = fast-path was used
+  })
+
+  it("Anthropic: unmodified conversation with originalIndex 0 uses fast-path", () => {
+    const originalBody = {
+      model: "claude-3-5-sonnet",
+      max_tokens: 1024,
+      messages: [
+        { role: "user", content: "Hello" },
+      ],
+    }
+
+    const universal = toUniversal("anthropic", originalBody)
+    expect(universal.messages[0].metadata.originalIndex).toBe(0)
+
+    const result = fromUniversal("anthropic", universal)
+    expect(result).toBe(originalBody) // Same reference = fast-path was used
+  })
+
+  it("Google: unmodified conversation with originalIndex 0 uses fast-path", () => {
+    const originalBody = {
+      model: "gemini-2.0-flash",
+      contents: [
+        { role: "user", parts: [{ text: "Hello" }] },
+      ],
+    }
+
+    const universal = toUniversal("google", originalBody)
+    expect(universal.messages[0].metadata.originalIndex).toBe(0)
+
+    const result = fromUniversal("google", universal)
+    expect(result).toBe(originalBody) // Same reference = fast-path was used
+  })
+
+  it("injected message (no originalIndex) still detected as modified", () => {
+    const originalBody = {
+      model: "gpt-4",
+      messages: [
+        { role: "user", content: "Hello" },
+      ],
+    }
+
+    const universal = toUniversal("openai", originalBody)
+    // Inject a new message without originalIndex
+    universal.messages.unshift({
+      role: "system",
+      content: [{ type: "text", text: "You are helpful", _original: { provider: "openai", raw: "You are helpful" } }],
+      id: "injected",
+      metadata: { contextInjection: true, provider: "openai" },
+    } as any)
+
+    const result = fromUniversal("openai", universal)
+    // Should NOT be the same reference (fast-path bypassed due to injection)
+    expect(result).not.toBe(originalBody)
+  })
+})

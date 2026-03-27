@@ -243,7 +243,7 @@ function hasMessagesBeenModified(universal: UniversalBody<"openai">): boolean {
   // Check if any messages have contextInjection metadata (indicates injection)
   const hasInjectedMessages = universal.messages.some(m => 
     m.metadata.contextInjection || 
-    !m.metadata.originalIndex // New messages without originalIndex
+    m.metadata.originalIndex === undefined // New messages without originalIndex
   )
   
   return hasInjectedMessages
