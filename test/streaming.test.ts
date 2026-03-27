@@ -199,6 +199,43 @@ describe("Streaming Parsers", () => {
       const messageEnd = events.find((e) => e.type === "message_end")
       expect(messageEnd).toBeDefined()
       expect(messageEnd!.stop_reason).toBe("end_turn")
+      // Usage data comes from message_delta, not message_stop
+      expect(messageEnd!.usage).toBeDefined()
+      expect(messageEnd!.usage.output_tokens).toBe(5)
+    })
+
+    it("should extract usage from message_delta event (not message_stop)", async () => {
+      const sseText = [
+        `event: message_start`,
+        `data: {"type":"message_start","message":{"id":"msg_usage","model":"claude-3-5-sonnet","content":[]}}`,
+        "",
+        `event: content_block_start`,
+        `data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}`,
+        "",
+        `event: content_block_delta`,
+        `data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hello"}}`,
+        "",
+        `event: content_block_stop`,
+        `data: {"type":"content_block_stop","index":0}`,
+        "",
+        `event: message_delta`,
+        `data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"input_tokens":25,"output_tokens":13}}`,
+        "",
+        `event: message_stop`,
+        `data: {"type":"message_stop"}`,
+        "",
+      ].join("\n")
+
+      const stream = createSSEStream(sseText)
+      const events = await collectEvents(parseAnthropicStream(stream))
+
+      const messageEnd = events.find((e) => e.type === "message_end")
+      expect(messageEnd).toBeDefined()
+      expect(messageEnd!.stop_reason).toBe("end_turn")
+      expect(messageEnd!.usage).toEqual({
+        input_tokens: 25,
+        output_tokens: 13,
+      })
     })
 
     it("should parse thinking deltas", async () => {

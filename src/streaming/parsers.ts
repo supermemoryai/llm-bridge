@@ -188,6 +188,7 @@ export async function* parseAnthropicStream(
   let currentBlockType: string | undefined
   let currentToolCallId: string | undefined
   let stopReason: string = "end_turn"
+  let streamUsage: { input_tokens: number; output_tokens: number } | undefined
 
   for await (const sse of parseSSEStream(stream)) {
     let data: any
@@ -271,21 +272,22 @@ export async function* parseAnthropicStream(
         if (data.delta?.stop_reason) {
           stopReason = data.delta.stop_reason
         }
+        // Anthropic sends usage data on message_delta, not message_stop
+        if (data.usage) {
+          streamUsage = {
+            input_tokens: data.usage.input_tokens ?? 0,
+            output_tokens: data.usage.output_tokens ?? 0,
+          }
+        }
         break
       }
 
       case "message_stop": {
-        const usage = data.usage || data.message?.usage
         yield {
           type: "message_end",
           stop_reason: stopReason,
-          ...(usage
-            ? {
-                usage: {
-                  input_tokens: usage.input_tokens ?? 0,
-                  output_tokens: usage.output_tokens ?? 0,
-                },
-              }
+          ...(streamUsage
+            ? { usage: streamUsage }
             : {}),
         }
         break
