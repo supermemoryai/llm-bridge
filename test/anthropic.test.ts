@@ -388,7 +388,7 @@ describe("Anthropic format conversion", () => {
       expect(universal.thinking!.budget_tokens).toBe(10000)
     })
 
-    it("should convert thinking content block to universal", () => {
+    it("should convert thinking content block to universal (with signature)", () => {
       const body = {
         model: "claude-sonnet-4-20250514",
         max_tokens: 16000,
@@ -400,6 +400,7 @@ describe("Anthropic format conversion", () => {
               {
                 type: "thinking" as const,
                 thinking: "Let me reason through this step by step...",
+                signature: "ErUBCkYIAxgCIkD3sMj2test_sig",
               },
               {
                 type: "text" as const,
@@ -418,6 +419,7 @@ describe("Anthropic format conversion", () => {
       const thinkingBlock = assistantMsg.content[0]
       expect(thinkingBlock.type).toBe("thinking")
       expect(thinkingBlock.thinking).toBe("Let me reason through this step by step...")
+      expect(thinkingBlock.signature).toBe("ErUBCkYIAxgCIkD3sMj2test_sig")
 
       const textBlock = assistantMsg.content[1]
       expect(textBlock.type).toBe("text")
@@ -625,6 +627,106 @@ describe("Anthropic format conversion", () => {
       expect(result.thinking).toBeDefined()
       expect(result.thinking.type).toBe("enabled")
       expect(result.thinking.budget_tokens).toBe(8000)
+    })
+
+    it("should round-trip thinking content block with signature (multi-turn)", () => {
+      // Simulates a multi-turn conversation where a previous assistant response
+      // included a thinking block with a signature. The signature MUST be preserved
+      // for Anthropic to accept the request.
+      const original = {
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 16000,
+        thinking: { type: "enabled", budget_tokens: 10000 },
+        messages: [
+          { role: "user" as const, content: "Solve this problem." },
+          {
+            role: "assistant" as const,
+            content: [
+              {
+                type: "thinking" as const,
+                thinking: "Let me reason step by step...",
+                signature: "ErUBCkYIAxgCIkD3sMj2example_signature_base64",
+              },
+              {
+                type: "text" as const,
+                text: "The answer is 42.",
+              },
+            ],
+          },
+          { role: "user" as const, content: "Can you explain further?" },
+        ],
+      } as any
+
+      // Step 1: Parse to universal
+      const universal = toUniversal("anthropic", original)
+
+      // Verify signature is captured in universal format
+      const assistantMsg = universal.messages[1]
+      const thinkingBlock = assistantMsg.content[0]
+      expect(thinkingBlock.type).toBe("thinking")
+      expect(thinkingBlock.thinking).toBe("Let me reason step by step...")
+      expect(thinkingBlock.signature).toBe("ErUBCkYIAxgCIkD3sMj2example_signature_base64")
+
+      // Step 2: Convert back to Anthropic format
+      const result = fromUniversal("anthropic", universal) as any
+
+      // Verify signature is preserved in the output
+      const assistantContent = result.messages[1].content
+      const outputThinking = assistantContent.find((b: any) => b.type === "thinking")
+      expect(outputThinking).toBeDefined()
+      // The _original fast path should preserve the full block including signature
+      expect(outputThinking.signature).toBe("ErUBCkYIAxgCIkD3sMj2example_signature_base64")
+      expect(outputThinking.thinking).toBe("Let me reason step by step...")
+    })
+
+    it("should preserve signature on thinking block via slow path (cross-provider)", () => {
+      // Simulates a scenario where a thinking block comes from a different provider
+      // (no _original.provider === "anthropic"), so the slow reconstruction path is used.
+      // The signature should still be preserved if it exists on the universal content.
+      const universal: any = {
+        provider: "anthropic",
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 16000,
+        messages: [
+          {
+            id: "msg_1",
+            role: "user",
+            content: [{ type: "text", text: "Explain." }],
+            metadata: { provider: "anthropic" },
+          },
+          {
+            id: "msg_2",
+            role: "assistant",
+            content: [
+              {
+                type: "thinking",
+                thinking: "Cross-provider thinking content",
+                signature: "sig_from_cross_provider_roundtrip",
+                // No _original field — simulates cross-provider path
+              },
+              {
+                type: "text",
+                text: "Here is my answer.",
+              },
+            ],
+            metadata: { provider: "anthropic" },
+          },
+          {
+            id: "msg_3",
+            role: "user",
+            content: [{ type: "text", text: "Follow up?" }],
+            metadata: { provider: "anthropic" },
+          },
+        ],
+      }
+
+      const result = fromUniversal("anthropic", universal) as any
+
+      const assistantContent = result.messages[1].content
+      const thinkingBlock = assistantContent.find((b: any) => b.type === "thinking")
+      expect(thinkingBlock).toBeDefined()
+      expect(thinkingBlock.thinking).toBe("Cross-provider thinking content")
+      expect(thinkingBlock.signature).toBe("sig_from_cross_provider_roundtrip")
     })
 
     it("should round-trip temperature and stop_sequences", () => {
