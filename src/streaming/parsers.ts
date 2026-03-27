@@ -375,7 +375,9 @@ export async function* parseGoogleStream(
     // Emit message_end when the candidate has a finishReason (stream is done).
     // Google sometimes sends finishReason without usageMetadata (e.g. in error/
     // safety-filtered responses), so we must not gate message_end on usageMetadata.
-    if (candidate?.finishReason || chunk.usageMetadata) {
+    // Guard with !emittedEnd to prevent duplicate message_end if finishReason and
+    // usageMetadata arrive in separate chunks.
+    if (!emittedEnd && (candidate?.finishReason || chunk.usageMetadata)) {
       emittedEnd = true
       yield {
         type: "message_end",

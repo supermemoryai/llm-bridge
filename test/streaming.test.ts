@@ -335,6 +335,27 @@ describe("Streaming Parsers", () => {
       expect(messageEnd).toBeDefined()
       expect(messageEnd!.stop_reason).toBe("end_turn")
     })
+
+    it("should not emit duplicate message_end when finishReason and usageMetadata arrive in separate chunks", async () => {
+      const sseText = [
+        `data: {"candidates":[{"content":{"parts":[{"text":"Hello"}],"role":"model"}}]}`,
+        "",
+        // Chunk 1: finishReason without usageMetadata
+        `data: {"candidates":[{"content":{"parts":[],"role":"model"},"finishReason":"STOP"}]}`,
+        "",
+        // Chunk 2: usageMetadata without finishReason (separate chunk)
+        `data: {"usageMetadata":{"promptTokenCount":10,"candidatesTokenCount":3,"totalTokenCount":13}}`,
+        "",
+      ].join("\n")
+
+      const stream = createSSEStream(sseText)
+      const events = await collectEvents(parseGoogleStream(stream))
+
+      // Must have exactly ONE message_end event, not two
+      const messageEnds = events.filter((e) => e.type === "message_end")
+      expect(messageEnds).toHaveLength(1)
+      expect(messageEnds[0].stop_reason).toBe("STOP")
+    })
   })
 
   describe("OpenAI Responses parser", () => {
