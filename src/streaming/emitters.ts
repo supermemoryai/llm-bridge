@@ -431,8 +431,61 @@ export function emitOpenAIResponsesStream(
       let contentIndex = 0
       // Track accumulated text per output item for "done" events
       let accumulatedText = ""
+      // Whether we've announced a message output item for text content
+      let messageItemAnnounced = false
       // Track accumulated arguments per tool call
       const toolCallArgs = new Map<string, { name: string; args: string; outputIndex: number }>()
+
+      // Lazily announce a message output item when the first text delta arrives
+      const ensureMessageItem = () => {
+        if (!messageItemAnnounced) {
+          const itemAddedData = {
+            type: "response.output_item.added",
+            output_index: outputIndex,
+            item: {
+              type: "message",
+              id: `item_${outputIndex}`,
+              role: "assistant",
+              content: [],
+            },
+          }
+          controller.enqueue(
+            sseEncode(`event: response.output_item.added\ndata: ${JSON.stringify(itemAddedData)}\n\n`),
+          )
+          messageItemAnnounced = true
+        }
+      }
+
+      // Close the current message output item (text done + item done) and advance outputIndex
+      const closeMessageItem = () => {
+        if (accumulatedText && messageItemAnnounced) {
+          const textDoneData = {
+            type: "response.output_text.done",
+            output_index: outputIndex,
+            content_index: contentIndex,
+            text: accumulatedText,
+          }
+          controller.enqueue(
+            sseEncode(`event: response.output_text.done\ndata: ${JSON.stringify(textDoneData)}\n\n`),
+          )
+          const itemDoneData = {
+            type: "response.output_item.done",
+            output_index: outputIndex,
+            item: {
+              type: "message",
+              id: `item_${outputIndex}`,
+              role: "assistant",
+              content: [{ type: "output_text", text: accumulatedText }],
+            },
+          }
+          controller.enqueue(
+            sseEncode(`event: response.output_item.done\ndata: ${JSON.stringify(itemDoneData)}\n\n`),
+          )
+          outputIndex++
+          accumulatedText = ""
+          messageItemAnnounced = false
+        }
+      }
 
       try {
         for await (const event of events) {
@@ -453,28 +506,16 @@ export function emitOpenAIResponsesStream(
               controller.enqueue(
                 sseEncode(`event: response.created\ndata: ${JSON.stringify(data)}\n\n`),
               )
-              // Emit output_item.added for the first text output item
-              const itemAddedData = {
-                type: "response.output_item.added",
-                output_index: outputIndex,
-                item: {
-                  type: "message",
-                  id: `item_${outputIndex}`,
-                  role: "assistant",
-                  content: [],
-                },
-              }
-              controller.enqueue(
-                sseEncode(`event: response.output_item.added\ndata: ${JSON.stringify(itemAddedData)}\n\n`),
-              )
               accumulatedText = ""
               contentIndex = 0
+              messageItemAnnounced = false
               break
             }
 
             case "content_delta": {
               const text = event.delta.text || event.delta.thinking || ""
               if (text) {
+                ensureMessageItem()
                 accumulatedText += text
                 const deltaData = {
                   type: "response.output_text.delta",
@@ -491,36 +532,11 @@ export function emitOpenAIResponsesStream(
 
             case "tool_call_start": {
               // Close the current text output item if we had text
-              if (accumulatedText) {
-                const textDoneData = {
-                  type: "response.output_text.done",
-                  output_index: outputIndex,
-                  content_index: contentIndex,
-                  text: accumulatedText,
-                }
-                controller.enqueue(
-                  sseEncode(`event: response.output_text.done\ndata: ${JSON.stringify(textDoneData)}\n\n`),
-                )
-                // Close the message output item
-                const itemDoneData = {
-                  type: "response.output_item.done",
-                  output_index: outputIndex,
-                  item: {
-                    type: "message",
-                    id: `item_${outputIndex}`,
-                    role: "assistant",
-                    content: [{ type: "output_text", text: accumulatedText }],
-                  },
-                }
-                controller.enqueue(
-                  sseEncode(`event: response.output_item.done\ndata: ${JSON.stringify(itemDoneData)}\n\n`),
-                )
-                outputIndex++
-                accumulatedText = ""
-              }
+              closeMessageItem()
 
-              // Add function call output item
-              const fcOutputIndex = outputIndex++
+              // Add function call output item at the current outputIndex, then advance
+              const fcOutputIndex = outputIndex
+              outputIndex++
               toolCallArgs.set(event.tool_call.id, {
                 name: event.tool_call.name,
                 args: "",
@@ -595,31 +611,7 @@ export function emitOpenAIResponsesStream(
 
             case "message_end": {
               // Close any remaining text output item
-              if (accumulatedText) {
-                const textDoneData = {
-                  type: "response.output_text.done",
-                  output_index: outputIndex,
-                  content_index: contentIndex,
-                  text: accumulatedText,
-                }
-                controller.enqueue(
-                  sseEncode(`event: response.output_text.done\ndata: ${JSON.stringify(textDoneData)}\n\n`),
-                )
-                const itemDoneData = {
-                  type: "response.output_item.done",
-                  output_index: outputIndex,
-                  item: {
-                    type: "message",
-                    id: `item_${outputIndex}`,
-                    role: "assistant",
-                    content: [{ type: "output_text", text: accumulatedText }],
-                  },
-                }
-                controller.enqueue(
-                  sseEncode(`event: response.output_item.done\ndata: ${JSON.stringify(itemDoneData)}\n\n`),
-                )
-                accumulatedText = ""
-              }
+              closeMessageItem()
 
               // Emit response.completed
               const completedData: any = {
