@@ -701,6 +701,66 @@ describe("Streaming Round-trip", () => {
     expect(messageEnds[0].usage).toEqual({ input_tokens: 10, output_tokens: 5 })
   })
 
+  it("should preserve finish_reason when usage arrives in separate chunk", async () => {
+    // Simulates stream_options: {"include_usage": true} where finish_reason
+    // and usage arrive in separate chunks
+    const sseText = [
+      `data: {"id":"chatcmpl-1","model":"gpt-4o","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}`,
+      `data: {"id":"chatcmpl-1","model":"gpt-4o","choices":[{"index":0,"delta":{"content":"Hello"},"finish_reason":null}]}`,
+      // finish_reason arrives in this chunk
+      `data: {"id":"chatcmpl-1","model":"gpt-4o","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}`,
+      // usage arrives in a separate chunk with empty choices
+      `data: {"id":"chatcmpl-1","model":"gpt-4o","choices":[],"usage":{"prompt_tokens":12,"completion_tokens":3}}`,
+      `data: [DONE]`,
+    ].join("\n\n")
+
+    const stream = createSSEStream(sseText)
+    const events = await collectEvents(parseOpenAIStream(stream))
+
+    const messageEnd = events.find((e: any) => e.type === "message_end")
+    expect(messageEnd).toBeDefined()
+    // Should use the previously saved finish_reason, not default to "end_turn"
+    expect(messageEnd.stop_reason).toBe("stop")
+    expect(messageEnd.usage).toEqual({ input_tokens: 12, output_tokens: 3 })
+  })
+
+  it("should preserve tool_calls finish_reason when usage arrives separately", async () => {
+    const sseText = [
+      `data: {"id":"chatcmpl-1","model":"gpt-4o","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}`,
+      `data: {"id":"chatcmpl-1","model":"gpt-4o","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"get_weather","arguments":""}}]},"finish_reason":null}]}`,
+      `data: {"id":"chatcmpl-1","model":"gpt-4o","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\\"loc\\":\\"SF\\"}"}}]},"finish_reason":null}]}`,
+      // finish_reason "tool_calls" in this chunk
+      `data: {"id":"chatcmpl-1","model":"gpt-4o","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}`,
+      // usage in separate chunk
+      `data: {"id":"chatcmpl-1","model":"gpt-4o","choices":[],"usage":{"prompt_tokens":20,"completion_tokens":8}}`,
+      `data: [DONE]`,
+    ].join("\n\n")
+
+    const stream = createSSEStream(sseText)
+    const events = await collectEvents(parseOpenAIStream(stream))
+
+    const messageEnd = events.find((e: any) => e.type === "message_end")
+    expect(messageEnd).toBeDefined()
+    expect(messageEnd.stop_reason).toBe("tool_calls")
+    expect(messageEnd.usage).toEqual({ input_tokens: 20, output_tokens: 8 })
+  })
+
+  it("should use finish_reason in [DONE] fallback when no usage chunk", async () => {
+    const sseText = [
+      `data: {"id":"chatcmpl-1","model":"gpt-4o","choices":[{"index":0,"delta":{"content":"Hi"},"finish_reason":null}]}`,
+      `data: {"id":"chatcmpl-1","model":"gpt-4o","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}`,
+      `data: [DONE]`,
+    ].join("\n\n")
+
+    const stream = createSSEStream(sseText)
+    const events = await collectEvents(parseOpenAIStream(stream))
+
+    const messageEnd = events.find((e: any) => e.type === "message_end")
+    expect(messageEnd).toBeDefined()
+    // [DONE] handler should use lastFinishReason, not hardcoded "end_turn"
+    expect(messageEnd.stop_reason).toBe("stop")
+  })
+
   it("should handle Anthropic emitter with multiple thinking deltas in one block", async () => {
     const universalEvents: UniversalStreamEvent[] = [
       { type: "message_start", id: "msg_1", model: "claude-sonnet-4-20250514" },

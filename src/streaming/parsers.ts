@@ -85,7 +85,7 @@ export async function* parseOpenAIStream(
 
   for await (const sse of parseSSEStream(stream)) {
     if (sse.data === "[DONE]") {
-      yield { type: "message_end", stop_reason: "end_turn" }
+      yield { type: "message_end", stop_reason: lastFinishReason || "end_turn" }
       return
     }
 
@@ -154,22 +154,22 @@ export async function* parseOpenAIStream(
       }
     }
 
-    // Handle usage in final chunk
+    // Track the last finish_reason (needed when usage arrives in a separate chunk)
+    if (choice?.finish_reason) {
+      lastFinishReason = choice.finish_reason
+    }
+
+    // Handle usage in final chunk (may arrive separately from finish_reason)
     if (chunk.usage) {
       yield {
         type: "message_end",
-        stop_reason: chunk.choices?.[0]?.finish_reason || "end_turn",
+        stop_reason: chunk.choices?.[0]?.finish_reason || lastFinishReason || "end_turn",
         usage: {
           input_tokens: chunk.usage.prompt_tokens ?? 0,
           output_tokens: chunk.usage.completion_tokens ?? 0,
         },
       }
       return
-    }
-
-    // Track the last finish_reason for fallback message_end
-    if (choice?.finish_reason) {
-      lastFinishReason = choice.finish_reason
     }
   }
 
