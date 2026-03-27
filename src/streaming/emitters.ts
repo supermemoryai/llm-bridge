@@ -193,7 +193,7 @@ export function emitAnthropicStream(
   return new ReadableStream({
     async start(controller) {
       let blockIndex = 0
-      let currentBlockType: "thinking" | "text" | null = null
+      let currentBlockType: "thinking" | "text" | "tool_use" | null = null
 
       const closeCurrentBlock = () => {
         if (currentBlockType !== null) {
@@ -300,7 +300,7 @@ export function emitAnthropicStream(
             }
 
             case "tool_call_start": {
-              // Close any open content block before starting tool_use
+              // Close any open block (text, thinking, or previous tool_use) before starting new tool_use
               closeCurrentBlock()
               const startData = {
                 type: "content_block_start",
@@ -317,6 +317,7 @@ export function emitAnthropicStream(
                   `event: content_block_start\ndata: ${JSON.stringify(startData)}\n\n`,
                 ),
               )
+              currentBlockType = "tool_use"
               break
             }
 
@@ -338,16 +339,7 @@ export function emitAnthropicStream(
             }
 
             case "tool_call_end": {
-              const stopData = {
-                type: "content_block_stop",
-                index: blockIndex,
-              }
-              controller.enqueue(
-                sseEncode(
-                  `event: content_block_stop\ndata: ${JSON.stringify(stopData)}\n\n`,
-                ),
-              )
-              blockIndex++
+              closeCurrentBlock()
               break
             }
 

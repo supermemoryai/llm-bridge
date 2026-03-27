@@ -500,6 +500,59 @@ describe("Streaming Emitters", () => {
       expect(deltaData.delta.type).toBe("text_delta")
       expect(deltaData.delta.text).toBe("Hi")
     })
+
+    it("should assign unique blockIndex to parallel tool calls", async () => {
+      const events: UniversalStreamEvent[] = [
+        { type: "message_start", id: "msg_parallel", model: "claude-3-5-sonnet" },
+        { type: "content_delta", delta: { text: "Let me call two tools." } },
+        // Two tool calls back-to-back (parallel from OpenAI)
+        { type: "tool_call_start", tool_call: { id: "call_1", name: "get_weather" } },
+        { type: "tool_call_delta", tool_call: { id: "call_1", arguments_delta: '{"city":"NYC"}' } },
+        { type: "tool_call_start", tool_call: { id: "call_2", name: "get_time" } },
+        { type: "tool_call_delta", tool_call: { id: "call_2", arguments_delta: '{"tz":"EST"}' } },
+        { type: "tool_call_end", tool_call: { id: "call_1" } },
+        { type: "tool_call_end", tool_call: { id: "call_2" } },
+        { type: "message_end", stop_reason: "tool_use" },
+      ]
+
+      const stream = emitAnthropicStream(asyncIterableFromArray(events))
+      const output = await readStreamAsText(stream)
+
+      // Parse all SSE events
+      const lines = output.split("\n")
+      const dataLines: any[] = []
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].startsWith("data: ")) {
+          const data = JSON.parse(lines[i].slice(6))
+          const eventLine = i > 0 && lines[i - 1].startsWith("event: ") ? lines[i - 1].slice(7) : undefined
+          dataLines.push({ ...data, _event: eventLine })
+        }
+      }
+
+      // Find content_block_start events for tool_use
+      const toolStarts = dataLines.filter(
+        (d) => d.type === "content_block_start" && d.content_block?.type === "tool_use"
+      )
+      expect(toolStarts).toHaveLength(2)
+      // Each tool call must have a unique blockIndex
+      expect(toolStarts[0].index).not.toBe(toolStarts[1].index)
+      expect(toolStarts[0].content_block.id).toBe("call_1")
+      expect(toolStarts[1].content_block.id).toBe("call_2")
+
+      // Verify the text block also has its own index (index 0)
+      const textStart = dataLines.find(
+        (d) => d.type === "content_block_start" && d.content_block?.type === "text"
+      )
+      expect(textStart).toBeDefined()
+      expect(textStart.index).toBe(0)
+      // Tool calls should be at index 1 and 2
+      expect(toolStarts[0].index).toBe(1)
+      expect(toolStarts[1].index).toBe(2)
+
+      // Verify content_block_stop events exist for each block
+      const blockStops = dataLines.filter((d) => d.type === "content_block_stop")
+      expect(blockStops.length).toBeGreaterThanOrEqual(3) // text + 2 tool_use blocks
+    })
   })
 
   describe("OpenAI Responses emitter", () => {
