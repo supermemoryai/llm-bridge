@@ -54,6 +54,7 @@ export type UniversalToolResult = {
   name: string
   result: unknown
   error?: string
+  is_error?: boolean // Anthropic supports marking tool results as errors
 
   // Provider-specific result metadata
   metadata?: {
@@ -74,9 +75,15 @@ export type UniversalContent = {
     | "document"
     | "tool_call"
     | "tool_result"
+    | "thinking"
+    | "redacted_thinking"
 
   // Text content
   text?: string
+
+  // Thinking content (for extended thinking / reasoning)
+  thinking?: string
+  signature?: string // Anthropic thinking block signature (required for multi-turn)
 
   // Media content - support all possible ways providers handle media
   media?: UniversalMediaContent
@@ -186,6 +193,25 @@ export type UniversalBody<TProvider extends ProviderType = ProviderType> = {
   seed?: number
   stream?: boolean
 
+  // Thinking / reasoning configuration
+  thinking?: {
+    enabled: boolean
+    budget_tokens?: number
+    effort?: "low" | "medium" | "high"
+  }
+
+  reasoning_effort?: "low" | "medium" | "high"
+
+  // Structured output configuration (normalized across providers)
+  structured_output?: {
+    type: "json_schema" | "json_object" | "text"
+    json_schema?: {
+      name: string
+      strict?: boolean
+      schema: Record<string, unknown>
+    }
+  }
+
   // Tools - universal format
   tools?: UniversalTool[]
   tool_choice?: "auto" | "required" | "none" | { name: string }
@@ -215,3 +241,12 @@ export type UniversalBody<TProvider extends ProviderType = ProviderType> = {
     raw: unknown // The complete original request body
   }
 }
+
+export type UniversalStreamEvent =
+  | { type: "message_start"; id: string; model: string }
+  | { type: "content_delta"; delta: { text?: string; thinking?: string } }
+  | { type: "tool_call_start"; tool_call: { id: string; name: string } }
+  | { type: "tool_call_delta"; tool_call: { id: string; arguments_delta: string } }
+  | { type: "tool_call_end"; tool_call: { id: string } }
+  | { type: "message_end"; stop_reason: string; usage?: { input_tokens: number; output_tokens: number } }
+  | { type: "error"; error: { message: string; code?: string } }

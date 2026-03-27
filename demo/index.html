@@ -1,0 +1,1198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LLM Bridge Playground</title>
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --surface: #12121a;
+      --surface2: #1a1a2e;
+      --border: #2a2a3e;
+      --text: #e0e0f0;
+      --text-dim: #8888aa;
+      --accent: #6366f1;
+      --accent-glow: rgba(99, 102, 241, 0.3);
+      --green: #22c55e;
+      --orange: #f59e0b;
+      --red: #ef4444;
+      --blue: #3b82f6;
+      --purple: #a855f7;
+      --pink: #ec4899;
+      --openai: #10a37f;
+      --anthropic: #d4a574;
+      --google: #4285f4;
+      --radius: 12px;
+      --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --mono: 'JetBrains Mono', 'Fira Code', monospace;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Header */
+    .header {
+      padding: 24px 32px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      background: linear-gradient(180deg, rgba(99,102,241,0.05) 0%, transparent 100%);
+    }
+    .header h1 {
+      font-size: 24px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #6366f1, #a855f7, #ec4899);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .header .subtitle {
+      color: var(--text-dim);
+      font-size: 14px;
+    }
+    .provider-badges {
+      margin-left: auto;
+      display: flex;
+      gap: 8px;
+    }
+    .provider-badge {
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      border: 1px solid;
+    }
+    .provider-badge.openai { color: var(--openai); border-color: var(--openai); background: rgba(16,163,127,0.1); }
+    .provider-badge.anthropic { color: var(--anthropic); border-color: var(--anthropic); background: rgba(212,165,116,0.1); }
+    .provider-badge.google { color: var(--google); border-color: var(--google); background: rgba(66,133,244,0.1); }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 0;
+      padding: 0 32px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      overflow-x: auto;
+    }
+    .tab {
+      padding: 14px 24px;
+      cursor: pointer;
+      color: var(--text-dim);
+      font-size: 14px;
+      font-weight: 500;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .tab:hover { color: var(--text); background: rgba(255,255,255,0.02); }
+    .tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+      background: rgba(99,102,241,0.05);
+    }
+    .tab .emoji { font-size: 16px; }
+
+    /* Main content */
+    .content { padding: 32px; max-width: 1400px; margin: 0 auto; }
+    .demo-panel { display: none; }
+    .demo-panel.active { display: block; }
+
+    /* Cards */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+    .card h3 {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Form elements */
+    .form-row {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      flex: 1;
+      min-width: 200px;
+    }
+    .form-group label {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-dim);
+    }
+    select, textarea, input[type="text"] {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    select:focus, textarea:focus, input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+    textarea { resize: vertical; min-height: 80px; font-family: var(--font); }
+
+    /* Buttons */
+    .btn {
+      padding: 10px 24px;
+      border-radius: 8px;
+      border: none;
+      font-family: var(--font);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      color: white;
+      box-shadow: 0 2px 12px var(--accent-glow);
+    }
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 20px var(--accent-glow);
+    }
+    .btn-primary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .btn-secondary {
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover { background: var(--border); }
+
+    /* JSON viewer */
+    .json-viewer {
+      background: #0d0d14;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.6;
+      overflow-x: auto;
+      max-height: 400px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .json-key { color: #a78bfa; }
+    .json-string { color: #86efac; }
+    .json-number { color: #fbbf24; }
+    .json-boolean { color: #f472b6; }
+    .json-null { color: #6b7280; }
+
+    /* Side by side */
+    .side-by-side {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    @media (max-width: 900px) {
+      .side-by-side { grid-template-columns: 1fr; }
+    }
+    .side-by-side .panel-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .side-by-side .panel-label .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    /* Streaming output */
+    .stream-output {
+      background: #0d0d14;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+      min-height: 120px;
+      font-size: 15px;
+      line-height: 1.7;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .stream-output .thinking-block {
+      color: var(--text-dim);
+      font-style: italic;
+      border-left: 3px solid var(--purple);
+      padding-left: 12px;
+      margin-bottom: 8px;
+    }
+    .stream-output .cursor {
+      display: inline-block;
+      width: 2px;
+      height: 18px;
+      background: var(--accent);
+      animation: blink 1s infinite;
+      vertical-align: text-bottom;
+    }
+    @keyframes blink { 0%, 50% { opacity: 1; } 51%, 100% { opacity: 0; } }
+
+    /* Roulette grid */
+    .roulette-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+      gap: 16px;
+    }
+    .roulette-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .roulette-card .roulette-header {
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    .roulette-card .roulette-header .provider-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+    .roulette-card .roulette-header .provider-name {
+      font-weight: 600;
+      font-size: 14px;
+    }
+    .roulette-card .roulette-header .elapsed {
+      margin-left: auto;
+      font-size: 12px;
+      color: var(--text-dim);
+      font-family: var(--mono);
+    }
+    .roulette-card .roulette-body {
+      padding: 16px;
+      font-size: 14px;
+      line-height: 1.6;
+      min-height: 100px;
+      max-height: 300px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .roulette-card .roulette-body .thinking-block {
+      color: var(--text-dim);
+      font-style: italic;
+      border-left: 3px solid var(--purple);
+      padding-left: 12px;
+      margin-bottom: 8px;
+    }
+    .roulette-card.streaming { border-color: var(--accent); box-shadow: 0 0 20px var(--accent-glow); }
+    .roulette-card.done { border-color: var(--green); }
+    .roulette-card.error { border-color: var(--red); }
+
+    /* Arrow animation */
+    .translation-arrow {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 16px;
+      color: var(--text-dim);
+      font-size: 13px;
+    }
+    .translation-arrow .arrow {
+      font-size: 20px;
+      color: var(--accent);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+
+    /* Tool calling */
+    .tool-call-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin: 8px 0;
+    }
+    .tool-call-card .tool-name {
+      font-family: var(--mono);
+      font-size: 13px;
+      color: var(--orange);
+      font-weight: 600;
+    }
+    .tool-call-card .tool-args {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--text-dim);
+      margin-top: 4px;
+    }
+    .tool-result-card {
+      background: rgba(34, 197, 94, 0.05);
+      border: 1px solid rgba(34, 197, 94, 0.2);
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin: 8px 0;
+    }
+
+    /* Status */
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .status.loading {
+      background: rgba(99,102,241,0.1);
+      color: var(--accent);
+    }
+    .status.success {
+      background: rgba(34,197,94,0.1);
+      color: var(--green);
+    }
+    .status.error {
+      background: rgba(239,68,68,0.1);
+      color: var(--red);
+    }
+
+    .spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid transparent;
+      border-top-color: currentColor;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      display: inline-block;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Flow diagram */
+    .flow-diagram {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 20px;
+      margin: 16px 0;
+      background: var(--surface2);
+      border-radius: var(--radius);
+      flex-wrap: wrap;
+    }
+    .flow-step {
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .flow-step.source { background: rgba(99,102,241,0.15); color: #818cf8; border: 1px solid rgba(99,102,241,0.3); }
+    .flow-step.universal { background: rgba(168,85,247,0.15); color: #c084fc; border: 1px solid rgba(168,85,247,0.3); }
+    .flow-step.target { background: rgba(34,197,94,0.15); color: #4ade80; border: 1px solid rgba(34,197,94,0.3); }
+    .flow-arrow { color: var(--text-dim); font-size: 18px; }
+
+    .description {
+      color: var(--text-dim);
+      font-size: 14px;
+      line-height: 1.6;
+      margin-bottom: 20px;
+    }
+
+    /* Three column */
+    .three-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 16px;
+    }
+    @media (max-width: 1100px) {
+      .three-col { grid-template-columns: 1fr; }
+    }
+  </style>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<div class="header">
+  <h1>LLM Bridge Playground</h1>
+  <span class="subtitle">Universal translation layer for LLM APIs</span>
+  <div class="provider-badges" id="providerBadges"></div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" data-tab="stream" onclick="switchTab('stream')">
+    <span class="emoji">🌊</span> Cross-Provider Streaming
+  </div>
+  <div class="tab" data-tab="roulette" onclick="switchTab('roulette')">
+    <span class="emoji">🎰</span> Provider Roulette
+  </div>
+  <div class="tab" data-tab="tools" onclick="switchTab('tools')">
+    <span class="emoji">🔧</span> Tool Calling
+  </div>
+  <div class="tab" data-tab="translate" onclick="switchTab('translate')">
+    <span class="emoji">🔄</span> Format Translation
+  </div>
+</div>
+
+<div class="content">
+
+  <!-- ============================================================ -->
+  <!-- Demo 1: Cross-Provider Streaming                              -->
+  <!-- ============================================================ -->
+  <div class="demo-panel active" id="panel-stream">
+    <div class="description">
+      Write your prompt in one provider's format, and stream the response from a <strong>completely different provider</strong>.
+      LLM Bridge translates the request on the fly, streams the response, and normalizes the SSE events into a universal format.
+    </div>
+
+    <div class="card">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Write request as</label>
+          <select id="streamSource">
+            <option value="openai">OpenAI Format</option>
+            <option value="anthropic">Anthropic Format</option>
+            <option value="google">Google Format</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Route to provider</label>
+          <select id="streamTarget">
+            <option value="anthropic">Anthropic (Claude Sonnet 4)</option>
+            <option value="openai">OpenAI (GPT-4o)</option>
+            <option value="google">Google (Gemini 2.0 Flash)</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>System prompt (optional)</label>
+          <input type="text" id="streamSystem" placeholder="You are a helpful assistant..." value="You are a witty, concise assistant. Keep responses under 3 sentences." />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>User prompt</label>
+          <textarea id="streamPrompt" rows="3">Explain quantum entanglement like I'm a curious 10-year-old who loves magic tricks.</textarea>
+        </div>
+      </div>
+      <button class="btn btn-primary" id="streamBtn" onclick="runStream()">
+        <span>Stream It</span>
+      </button>
+    </div>
+
+    <div id="streamFlow" style="display:none">
+      <div class="flow-diagram">
+        <div class="flow-step source" id="streamFlowSource">OpenAI Format</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step universal">Universal Format</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step target" id="streamFlowTarget">Anthropic API</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step universal">Universal Events</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step source">Response</div>
+      </div>
+    </div>
+
+    <div id="streamResults" style="display:none">
+      <div class="side-by-side" style="margin-bottom: 16px;">
+        <div>
+          <div class="panel-label">
+            <span class="dot" style="background:var(--accent)"></span>
+            Source Request (as written)
+          </div>
+          <div class="json-viewer" id="streamSourceJson"></div>
+        </div>
+        <div>
+          <div class="panel-label">
+            <span class="dot" style="background:var(--green)"></span>
+            Translated Request (sent to provider)
+          </div>
+          <div class="json-viewer" id="streamTargetJson"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>
+          <span id="streamStatus"></span>
+          Streaming Response
+        </h3>
+        <div class="stream-output" id="streamOutput"></div>
+      </div>
+
+      <details style="margin-top: 12px;">
+        <summary style="cursor:pointer; color: var(--text-dim); font-size: 13px;">Show raw universal events</summary>
+        <div class="json-viewer" id="streamEvents" style="margin-top: 8px; max-height: 300px;"></div>
+      </details>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- Demo 2: Provider Roulette                                     -->
+  <!-- ============================================================ -->
+  <div class="demo-panel" id="panel-roulette">
+    <div class="description">
+      Send the <strong>exact same prompt</strong> to all available providers simultaneously.
+      LLM Bridge translates a single OpenAI-format request into each provider's native format and streams all responses in real-time.
+      Watch them race!
+    </div>
+
+    <div class="card">
+      <div class="form-row">
+        <div class="form-group">
+          <label>System prompt (optional)</label>
+          <input type="text" id="rouletteSystem" placeholder="You are a helpful assistant..." value="Answer in exactly 2 sentences. Be creative and surprising." />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Prompt</label>
+          <textarea id="roulettePrompt" rows="3">If programming languages were cocktails, what would Python, Rust, and JavaScript be? Name the cocktail and explain why.</textarea>
+        </div>
+      </div>
+      <button class="btn btn-primary" id="rouletteBtn" onclick="runRoulette()">
+        <span>Race All Providers</span>
+      </button>
+    </div>
+
+    <div class="roulette-grid" id="rouletteGrid"></div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- Demo 3: Tool Calling                                          -->
+  <!-- ============================================================ -->
+  <div class="demo-panel" id="panel-tools">
+    <div class="description">
+      Define tools in <strong>OpenAI format</strong>, then route the request to <strong>any provider</strong>.
+      LLM Bridge translates the tool definitions, the model's tool calls, and the tool results — then continues the conversation.
+      The full tool lifecycle works across providers seamlessly.
+    </div>
+
+    <div class="card">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Route to provider</label>
+          <select id="toolTarget">
+            <option value="anthropic">Anthropic (Claude Sonnet 4)</option>
+            <option value="openai">OpenAI (GPT-4o)</option>
+            <option value="google">Google (Gemini 2.0 Flash)</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Prompt (will trigger tool use)</label>
+          <textarea id="toolPrompt" rows="3">What's the weather like in Tokyo and what time is it in New York right now?</textarea>
+        </div>
+      </div>
+      <button class="btn btn-primary" id="toolBtn" onclick="runToolCalling()">
+        <span>Run Tool Calling</span>
+      </button>
+    </div>
+
+    <div id="toolResults" style="display:none">
+      <div class="flow-diagram">
+        <div class="flow-step source">OpenAI Tools</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step universal">Universal</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step target" id="toolFlowTarget">Provider</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step" style="background:rgba(245,158,11,0.15);color:#fbbf24;border:1px solid rgba(245,158,11,0.3)">Tool Calls</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step" style="background:rgba(34,197,94,0.15);color:#4ade80;border:1px solid rgba(34,197,94,0.3)">Results</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step target">Final Answer</div>
+      </div>
+
+      <div class="three-col" style="margin-top: 16px;">
+        <div>
+          <div class="panel-label">
+            <span class="dot" style="background:var(--accent)"></span>
+            OpenAI Source (with tools)
+          </div>
+          <div class="json-viewer" id="toolSourceJson" style="max-height:300px"></div>
+        </div>
+        <div>
+          <div class="panel-label">
+            <span class="dot" style="background:var(--green)"></span>
+            Translated Request
+          </div>
+          <div class="json-viewer" id="toolTranslatedJson" style="max-height:300px"></div>
+        </div>
+        <div>
+          <div class="panel-label">
+            <span class="dot" style="background:var(--orange)"></span>
+            Raw Provider Response
+          </div>
+          <div class="json-viewer" id="toolResponseJson" style="max-height:300px"></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top: 16px;">
+        <h3>Tool Calls & Results</h3>
+        <div id="toolCallsDisplay"></div>
+      </div>
+
+      <div class="card" id="toolFinalCard" style="display:none">
+        <h3>Final Answer</h3>
+        <div id="toolFinalAnswer" style="font-size: 15px; line-height: 1.7;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- Demo 4: Format Translation                                    -->
+  <!-- ============================================================ -->
+  <div class="demo-panel" id="panel-translate">
+    <div class="description">
+      See exactly how LLM Bridge translates request bodies between providers.
+      Pick a source and target format, and watch the JSON transform in real-time.
+      This is a <strong>live API call</strong> — the translated request is actually sent to the target provider.
+    </div>
+
+    <div class="card">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Source format</label>
+          <select id="translateSource" onchange="updateTranslatePreview()">
+            <option value="openai">OpenAI</option>
+            <option value="anthropic">Anthropic</option>
+            <option value="google">Google</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Target provider</label>
+          <select id="translateTarget">
+            <option value="anthropic">Anthropic</option>
+            <option value="openai">OpenAI</option>
+            <option value="google">Google</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Prompt</label>
+          <textarea id="translatePrompt" rows="2" oninput="updateTranslatePreview()">What are three fun facts about octopuses?</textarea>
+        </div>
+      </div>
+      <button class="btn btn-primary" id="translateBtn" onclick="runTranslate()">
+        <span>Translate & Send</span>
+      </button>
+    </div>
+
+    <div id="translateResults" style="display:none">
+      <div class="three-col" style="margin-top: 16px;">
+        <div>
+          <div class="panel-label">
+            <span class="dot" style="background:var(--accent)"></span>
+            Source Body
+          </div>
+          <div class="json-viewer" id="translateSourceJson"></div>
+        </div>
+        <div>
+          <div class="panel-label">
+            <span class="dot" style="background:var(--purple)"></span>
+            Universal Format
+          </div>
+          <div class="json-viewer" id="translateUniversalJson"></div>
+        </div>
+        <div>
+          <div class="panel-label">
+            <span class="dot" style="background:var(--green)"></span>
+            Target Body (sent to API)
+          </div>
+          <div class="json-viewer" id="translateTargetJson"></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top: 16px;">
+        <h3><span id="translateStatus"></span> Response</h3>
+        <div id="translateResponse" style="font-size: 15px; line-height: 1.7;"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ============================================================
+// State & Helpers
+// ============================================================
+let providers = []
+
+async function init() {
+  const res = await fetch('/api/providers')
+  const data = await res.json()
+  providers = data.providers
+
+  const badges = document.getElementById('providerBadges')
+  providers.forEach(p => {
+    const badge = document.createElement('span')
+    badge.className = `provider-badge ${p.id}`
+    badge.textContent = `${p.name}`
+    badges.appendChild(badge)
+  })
+}
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'))
+  document.querySelectorAll('.demo-panel').forEach(p => p.classList.remove('active'))
+  document.querySelector(`.tab[data-tab="${tab}"]`).classList.add('active')
+  document.getElementById(`panel-${tab}`).classList.add('active')
+}
+
+function syntaxHighlight(json) {
+  if (typeof json !== 'string') json = JSON.stringify(json, null, 2)
+  return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, (match) => {
+    let cls = 'json-number'
+    if (/^"/.test(match)) {
+      if (/:$/.test(match)) {
+        cls = 'json-key'
+        match = match.replace(/:$/, '') + ':'
+      } else {
+        cls = 'json-string'
+      }
+    } else if (/true|false/.test(match)) {
+      cls = 'json-boolean'
+    } else if (/null/.test(match)) {
+      cls = 'json-null'
+    }
+    return `<span class="${cls}">${match}</span>`
+  })
+}
+
+function setJson(id, data) {
+  const el = document.getElementById(id)
+  if (!el) return
+  el.innerHTML = syntaxHighlight(data)
+}
+
+function providerColor(id) {
+  if (id === 'openai') return 'var(--openai)'
+  if (id === 'anthropic') return 'var(--anthropic)'
+  if (id === 'google') return 'var(--google)'
+  return 'var(--accent)'
+}
+
+function providerLabel(id) {
+  const p = providers.find(p => p.id === id)
+  return p ? p.name : id
+}
+
+// ============================================================
+// Demo 1: Cross-Provider Streaming
+// ============================================================
+async function runStream() {
+  const source = document.getElementById('streamSource').value
+  const target = document.getElementById('streamTarget').value
+  const prompt = document.getElementById('streamPrompt').value
+  const systemPrompt = document.getElementById('streamSystem').value
+  const btn = document.getElementById('streamBtn')
+
+  btn.disabled = true
+  btn.innerHTML = '<span class="spinner"></span> Streaming...'
+
+  document.getElementById('streamFlow').style.display = 'block'
+  document.getElementById('streamResults').style.display = 'block'
+  document.getElementById('streamFlowSource').textContent = `${source.charAt(0).toUpperCase() + source.slice(1)} Format`
+  document.getElementById('streamFlowTarget').textContent = `${providerLabel(target)} API`
+  document.getElementById('streamOutput').innerHTML = '<span class="cursor"></span>'
+  document.getElementById('streamEvents').textContent = ''
+  document.getElementById('streamSourceJson').textContent = 'Loading...'
+  document.getElementById('streamTargetJson').textContent = 'Loading...'
+  document.getElementById('streamStatus').innerHTML = '<span class="status loading"><span class="spinner"></span> Streaming</span>'
+
+  let fullText = ''
+  let thinkingText = ''
+  let events = []
+
+  try {
+    const res = await fetch('/api/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sourceFormat: source, targetProvider: target, prompt, systemPrompt }),
+    })
+
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || ''
+
+      for (const line of lines) {
+        if (line.startsWith('event: ')) {
+          var currentEvent = line.slice(7)
+        } else if (line.startsWith('data: ') && currentEvent) {
+          const data = line.slice(6)
+
+          if (currentEvent === 'meta') {
+            const meta = JSON.parse(data)
+            setJson('streamSourceJson', meta.sourceBody)
+            setJson('streamTargetJson', meta.targetBody)
+          } else if (currentEvent === 'text') {
+            fullText += data
+            renderStreamOutput(thinkingText, fullText, true)
+          } else if (currentEvent === 'thinking') {
+            thinkingText += data
+            renderStreamOutput(thinkingText, fullText, true)
+          } else if (currentEvent === 'universal') {
+            events.push(JSON.parse(data))
+            document.getElementById('streamEvents').innerHTML = syntaxHighlight(events)
+          } else if (currentEvent === 'done') {
+            renderStreamOutput(thinkingText, fullText, false)
+            document.getElementById('streamStatus').innerHTML = '<span class="status success">Complete</span>'
+          } else if (currentEvent === 'error') {
+            const err = JSON.parse(data)
+            document.getElementById('streamStatus').innerHTML = `<span class="status error">Error: ${err.message}</span>`
+          }
+          currentEvent = null
+        }
+      }
+    }
+  } catch (err) {
+    document.getElementById('streamStatus').innerHTML = `<span class="status error">Error: ${err.message}</span>`
+  }
+
+  btn.disabled = false
+  btn.innerHTML = '<span>Stream It</span>'
+}
+
+function renderStreamOutput(thinking, text, streaming) {
+  const el = document.getElementById('streamOutput')
+  let html = ''
+  if (thinking) {
+    html += `<div class="thinking-block">${escapeHtml(thinking)}</div>`
+  }
+  html += escapeHtml(text)
+  if (streaming) html += '<span class="cursor"></span>'
+  el.innerHTML = html
+  el.scrollTop = el.scrollHeight
+}
+
+function escapeHtml(str) {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+// ============================================================
+// Demo 2: Provider Roulette (Streaming)
+// ============================================================
+async function runRoulette() {
+  const prompt = document.getElementById('roulettePrompt').value
+  const systemPrompt = document.getElementById('rouletteSystem').value
+  const btn = document.getElementById('rouletteBtn')
+  const grid = document.getElementById('rouletteGrid')
+
+  btn.disabled = true
+  btn.innerHTML = '<span class="spinner"></span> Racing...'
+
+  // Create cards for each provider
+  grid.innerHTML = ''
+  const cards = {}
+  const texts = {}
+  const thinkings = {}
+  const startTimes = {}
+
+  providers.forEach(p => {
+    texts[p.id] = ''
+    thinkings[p.id] = ''
+    startTimes[p.id] = Date.now()
+    const card = document.createElement('div')
+    card.className = 'roulette-card streaming'
+    card.id = `roulette-${p.id}`
+    card.innerHTML = `
+      <div class="roulette-header">
+        <div class="provider-dot" style="background:${providerColor(p.id)}"></div>
+        <div class="provider-name">${p.name}</div>
+        <div class="elapsed" id="elapsed-${p.id}"><span class="spinner"></span></div>
+      </div>
+      <div class="roulette-body" id="roulette-body-${p.id}"><span class="cursor"></span></div>
+    `
+    grid.appendChild(card)
+    cards[p.id] = card
+  })
+
+  try {
+    const res = await fetch('/api/stream-roulette', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, systemPrompt }),
+    })
+
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || ''
+
+      let currentEvent = null
+      for (const line of lines) {
+        if (line.startsWith('event: ')) {
+          currentEvent = line.slice(7)
+        } else if (line.startsWith('data: ') && currentEvent) {
+          const data = JSON.parse(line.slice(6))
+
+          if (currentEvent === 'start') {
+            startTimes[data.provider] = Date.now()
+          } else if (currentEvent === 'token') {
+            texts[data.provider] += data.text
+            renderRouletteCard(data.provider, thinkings[data.provider], texts[data.provider], true)
+          } else if (currentEvent === 'thinking') {
+            thinkings[data.provider] += data.text
+            renderRouletteCard(data.provider, thinkings[data.provider], texts[data.provider], true)
+          } else if (currentEvent === 'provider_done') {
+            const elapsed = Date.now() - startTimes[data.provider]
+            const card = cards[data.provider]
+            card.className = 'roulette-card done'
+            document.getElementById(`elapsed-${data.provider}`).textContent = `${(elapsed/1000).toFixed(1)}s`
+            renderRouletteCard(data.provider, thinkings[data.provider], texts[data.provider], false)
+          } else if (currentEvent === 'provider_error') {
+            const card = cards[data.provider]
+            card.className = 'roulette-card error'
+            document.getElementById(`roulette-body-${data.provider}`).textContent = `Error: ${data.error}`
+            document.getElementById(`elapsed-${data.provider}`).textContent = 'failed'
+          }
+          currentEvent = null
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Roulette error:', err)
+  }
+
+  btn.disabled = false
+  btn.innerHTML = '<span>Race All Providers</span>'
+}
+
+function renderRouletteCard(provider, thinking, text, streaming) {
+  const el = document.getElementById(`roulette-body-${provider}`)
+  if (!el) return
+  let html = ''
+  if (thinking) {
+    html += `<div class="thinking-block">${escapeHtml(thinking)}</div>`
+  }
+  html += escapeHtml(text)
+  if (streaming) html += '<span class="cursor"></span>'
+  el.innerHTML = html
+  el.scrollTop = el.scrollHeight
+}
+
+// ============================================================
+// Demo 3: Tool Calling
+// ============================================================
+async function runToolCalling() {
+  const target = document.getElementById('toolTarget').value
+  const prompt = document.getElementById('toolPrompt').value
+  const btn = document.getElementById('toolBtn')
+
+  btn.disabled = true
+  btn.innerHTML = '<span class="spinner"></span> Running...'
+
+  document.getElementById('toolResults').style.display = 'block'
+  document.getElementById('toolFlowTarget').textContent = providerLabel(target)
+  document.getElementById('toolCallsDisplay').innerHTML = '<span class="status loading"><span class="spinner"></span> Calling provider...</span>'
+  document.getElementById('toolFinalCard').style.display = 'none'
+
+  try {
+    const res = await fetch('/api/tool-calling', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ targetProvider: target, prompt }),
+    })
+    const data = await res.json()
+
+    if (data.error) throw new Error(data.error)
+
+    const { steps } = data
+    setJson('toolSourceJson', steps.sourceBody)
+    setJson('toolTranslatedJson', steps.translatedBody)
+    setJson('toolResponseJson', steps.initialResponse)
+
+    // Display tool calls and results
+    let html = ''
+    if (steps.toolCalls.length === 0) {
+      html = '<p style="color:var(--text-dim)">No tool calls made. The model responded directly.</p>'
+    } else {
+      steps.toolCalls.forEach((tc, i) => {
+        const fn = tc.function || tc
+        html += `
+          <div class="tool-call-card">
+            <div class="tool-name">🔧 ${fn.name}()</div>
+            <div class="tool-args">${escapeHtml(fn.arguments || JSON.stringify(tc.input || {}))}</div>
+          </div>
+        `
+        if (steps.toolResults[i]) {
+          html += `
+            <div class="tool-result-card">
+              <div style="font-size:12px;font-weight:600;color:var(--green);margin-bottom:4px;">✓ Result</div>
+              <div style="font-family:var(--mono);font-size:12px;">${escapeHtml(JSON.stringify(steps.toolResults[i].result, null, 2))}</div>
+            </div>
+          `
+        }
+      })
+    }
+    document.getElementById('toolCallsDisplay').innerHTML = html
+
+    // Final answer
+    if (steps.finalResponse) {
+      let finalText = ''
+      if (target === 'openai') {
+        finalText = steps.finalResponse.choices?.[0]?.message?.content || ''
+      } else if (target === 'anthropic') {
+        finalText = (steps.finalResponse.content || [])
+          .filter(b => b.type === 'text')
+          .map(b => b.text)
+          .join('')
+      } else if (target === 'google') {
+        finalText = (steps.finalResponse.candidates?.[0]?.content?.parts || [])
+          .map(p => p.text)
+          .join('')
+      }
+      if (finalText) {
+        document.getElementById('toolFinalCard').style.display = 'block'
+        document.getElementById('toolFinalAnswer').textContent = finalText
+      }
+    }
+  } catch (err) {
+    document.getElementById('toolCallsDisplay').innerHTML = `<span class="status error">Error: ${err.message}</span>`
+  }
+
+  btn.disabled = false
+  btn.innerHTML = '<span>Run Tool Calling</span>'
+}
+
+// ============================================================
+// Demo 4: Format Translation
+// ============================================================
+async function runTranslate() {
+  const source = document.getElementById('translateSource').value
+  const target = document.getElementById('translateTarget').value
+  const prompt = document.getElementById('translatePrompt').value
+  const btn = document.getElementById('translateBtn')
+
+  btn.disabled = true
+  btn.innerHTML = '<span class="spinner"></span> Translating...'
+
+  document.getElementById('translateResults').style.display = 'block'
+  document.getElementById('translateStatus').innerHTML = '<span class="status loading"><span class="spinner"></span> Sending</span>'
+
+  // Build source body
+  let sourceBody
+  if (source === 'openai') {
+    sourceBody = {
+      model: 'gpt-4o',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.7,
+      max_tokens: 1024,
+    }
+  } else if (source === 'anthropic') {
+    sourceBody = {
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1024,
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.7,
+    }
+  } else if (source === 'google') {
+    sourceBody = {
+      model: 'gemini-2.0-flash',
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
+    }
+  }
+
+  try {
+    const res = await fetch('/api/translate-and-route', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sourceFormat: source, targetProvider: target, body: sourceBody }),
+    })
+    const data = await res.json()
+
+    if (data.error) throw new Error(data.error)
+
+    setJson('translateSourceJson', data.steps.sourceBody)
+    setJson('translateUniversalJson', data.steps.universal)
+    setJson('translateTargetJson', data.steps.targetBody)
+
+    // Extract response text
+    let text = ''
+    const resp = data.steps.response
+    if (target === 'openai') {
+      text = resp.choices?.[0]?.message?.content || ''
+    } else if (target === 'anthropic') {
+      text = (resp.content || []).filter(b => b.type === 'text').map(b => b.text).join('')
+    } else if (target === 'google') {
+      text = (resp.candidates?.[0]?.content?.parts || []).map(p => p.text).join('')
+    }
+
+    document.getElementById('translateResponse').textContent = text
+    document.getElementById('translateStatus').innerHTML = '<span class="status success">Complete</span>'
+  } catch (err) {
+    document.getElementById('translateStatus').innerHTML = `<span class="status error">Error: ${err.message}</span>`
+    document.getElementById('translateResponse').textContent = err.message
+  }
+
+  btn.disabled = false
+  btn.innerHTML = '<span>Translate & Send</span>'
+}
+
+// Init
+init()
+</script>
+</body>
+</html>

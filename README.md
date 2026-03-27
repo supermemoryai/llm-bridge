@@ -2,9 +2,9 @@
 
 **The Universal Translation Layer for Large Language Model APIs**
 
-LLM Bridge is a powerful TypeScript library that provides seamless translation between different LLM provider APIs (OpenAI, Anthropic Claude, Google Gemini) while preserving **zero data loss** and enabling perfect reconstruction of original requests.
+LLM Bridge is a powerful TypeScript library that provides seamless translation between different LLM provider APIs (OpenAI Chat Completions, OpenAI Responses API, Anthropic Claude, Google Gemini) while preserving **zero data loss** and enabling perfect reconstruction of original requests.
 
-[![Tests](https://img.shields.io/badge/tests-146%20passing-brightgreen)](./test)
+[![Tests](https://img.shields.io/badge/tests-355%20passing-brightgreen)](./test)
 [![Coverage](https://img.shields.io/badge/coverage-comprehensive-green)](./test)
 
 ## 🚀 Why LLM Bridge Exists
@@ -23,8 +23,11 @@ The particular challenges are in:
 ### The Solution
 LLM Bridge provides a **universal format** that acts as a common language between all major LLM providers, enabling:
 
-✅ **Perfect Translation** - Convert between OpenAI, Anthropic, and Google formats  
+✅ **Perfect Translation** - Convert between OpenAI, Anthropic, Google, and OpenAI Responses API formats  
 ✅ **Zero Data Loss** - Every field is preserved with `_original` reconstruction  
+✅ **Streaming Support** - Parse and emit SSE streams across all providers  
+✅ **Extended Thinking** - Anthropic thinking blocks, Google thought parts, OpenAI reasoning  
+✅ **Structured Output** - JSON schema response formats across all providers  
 ✅ **Multimodal Support** - Images, documents, and rich content across providers  
 ✅ **Tool Calling** - Function calling translation between different formats  
 ✅ **Error Handling** - Unified error types with provider-specific translation  
@@ -45,7 +48,7 @@ import { toUniversal, fromUniversal, translateBetweenProviders } from 'llm-bridg
 
 // Convert OpenAI request to universal format
 const openaiRequest = {
-  model: "gpt-4",
+  model: "gpt-4o",
   messages: [
     { role: "system", content: "You are a helpful assistant" },
     { role: "user", content: "Hello!" }
@@ -56,7 +59,7 @@ const openaiRequest = {
 
 const universal = toUniversal("openai", openaiRequest)
 console.log(universal.provider) // "openai"
-console.log(universal.model)    // "gpt-4"
+console.log(universal.model)    // "gpt-4o"
 console.log(universal.system)   // "You are a helpful assistant"
 
 // Convert universal format back to any provider
@@ -65,6 +68,90 @@ const googleRequest = fromUniversal("google", universal)
 
 // Or translate directly between providers
 const anthropicRequest2 = translateBetweenProviders("openai", "anthropic", openaiRequest)
+```
+
+### OpenAI Responses API
+
+```typescript
+// Convert OpenAI Responses API format
+const responsesRequest = {
+  model: "gpt-4o",
+  input: [
+    { role: "user", content: "What is the weather?" }
+  ],
+  tools: [
+    { type: "function", name: "get_weather", parameters: { type: "object", properties: { location: { type: "string" } } } }
+  ],
+  max_output_tokens: 1000
+}
+
+const universal = toUniversal("openai-responses", responsesRequest)
+const anthropicRequest = fromUniversal("anthropic", universal)
+```
+
+### Streaming
+
+```typescript
+import { parseOpenAIStream, emitAnthropicStream } from 'llm-bridge'
+
+// Parse an OpenAI SSE stream into universal events
+const universalEvents = parseOpenAIStream(openaiSSEStream)
+
+// Re-emit as Anthropic SSE format
+const anthropicStream = emitAnthropicStream(universalEvents)
+
+// Or use the handler for full stream translation
+import { handleUniversalStreamRequest } from 'llm-bridge'
+
+const outputStream = handleUniversalStreamRequest(
+  inputStream,
+  "openai",    // source provider
+  "anthropic", // target provider
+  async (event) => event // optional transform
+)
+```
+
+### Extended Thinking
+
+```typescript
+// Anthropic extended thinking
+const anthropicRequest = {
+  model: "claude-sonnet-4-20250514",
+  max_tokens: 16000,
+  thinking: { type: "enabled", budget_tokens: 10000 },
+  messages: [{ role: "user", content: "Solve this complex problem..." }]
+}
+
+const universal = toUniversal("anthropic", anthropicRequest)
+console.log(universal.thinking) // { enabled: true, budget_tokens: 10000 }
+
+// Convert to Google format with thinking
+const googleRequest = fromUniversal("google", universal)
+// Includes thinkingConfig: { thinkingBudget: 10000 }
+```
+
+### Structured Output
+
+```typescript
+// OpenAI structured output
+const openaiRequest = {
+  model: "gpt-4o",
+  messages: [{ role: "user", content: "Extract the name and age" }],
+  response_format: {
+    type: "json_schema",
+    json_schema: {
+      name: "person",
+      schema: { type: "object", properties: { name: { type: "string" }, age: { type: "number" } } }
+    }
+  }
+}
+
+const universal = toUniversal("openai", openaiRequest)
+// universal.structured_output contains the normalized schema
+
+// Convert to Google format
+const googleRequest = fromUniversal("google", universal)
+// Includes generationConfig: { responseMimeType: "application/json", responseSchema: {...} }
 ```
 
 ### Perfect Reconstruction
@@ -85,80 +172,69 @@ console.log(reconstructed === original) // Perfect equality!
 LLM Bridge converts between provider-specific formats through a universal intermediate format:
 
 ```
-OpenAI ←→ Universal ←→ Anthropic
-  ↕                    ↕
-Google ←→ Universal ←→ Custom
+OpenAI Chat ←→ Universal ←→ Anthropic
+     ↕                        ↕
+OpenAI Responses ←→ Universal ←→ Google
 ```
 
-### 2. **Multimodal Content Support**
+### 2. **Supported Providers**
+
+| Provider | Format | Features |
+|----------|--------|----------|
+| **OpenAI Chat Completions** | `openai` | Messages, tools, developer role, reasoning_effort, structured output |
+| **OpenAI Responses API** | `openai-responses` | Input items, reasoning config, built-in tools (web_search, file_search) |
+| **Anthropic Claude** | `anthropic` | Messages, tools, extended thinking, cache_control, URL images |
+| **Google Gemini** | `google` | Contents, function declarations, thinkingConfig, structured output |
+
+### 3. **Streaming Support**
+
+Parse and emit Server-Sent Events (SSE) streams for all providers:
+
+- **Parsers**: Convert provider SSE streams → universal stream events
+- **Emitters**: Convert universal stream events → provider SSE streams
+- **Handler**: Full stream translation pipeline with optional transforms
+
+### 4. **Multimodal Content Support**
 
 Handle images and documents seamlessly across providers:
 
 ```typescript
-// OpenAI format with base64 image
+// OpenAI format with image
 const openaiMultimodal = {
-  model: "gpt-4-vision-preview",
+  model: "gpt-4o",
   messages: [{
     role: "user",
     content: [
       { type: "text", text: "What's in this image?" },
-      { 
-        type: "image_url", 
-        image_url: { 
-          url: "data:image/jpeg;base64,iVBORw0KGgoAAAA...",
-          detail: "high"
-        }
-      }
+      { type: "image_url", image_url: { url: "data:image/jpeg;base64,..." } }
     ]
   }]
 }
 
-// Translate to Anthropic format
-const anthropicMultimodal = translateBetweenProviders("openai", "anthropic", openaiMultimodal)
-
-// Result: Anthropic-compatible format
-// {
-//   model: "gpt-4-vision-preview",
-//   messages: [{
-//     role: "user", 
-//     content: [
-//       { type: "text", text: "What's in this image?" },
-//       { 
-//         type: "image",
-//         source: {
-//           type: "base64",
-//           media_type: "image/jpeg", 
-//           data: "iVBORw0KGgoAAAA..."
-//         }
-//       }
-//     ]
-//   }]
-// }
+// Translate to Anthropic (base64 source) or Google (inlineData)
+const anthropicRequest = translateBetweenProviders("openai", "anthropic", openaiMultimodal)
+const googleRequest = translateBetweenProviders("openai", "google", openaiMultimodal)
 ```
 
-### 3. **Function/Tool Calling Translation**
+### 5. **Function/Tool Calling Translation**
 
 Seamlessly translate tool calls between different provider formats:
 
 ```typescript
-// OpenAI tool calling format
 const openaiWithTools = {
-  model: "gpt-4",
+  model: "gpt-4o",
   messages: [
     {
       role: "assistant",
       tool_calls: [{
         id: "call_123",
-        type: "function", 
-        function: {
-          name: "get_weather",
-          arguments: '{"location": "San Francisco"}'
-        }
+        type: "function",
+        function: { name: "get_weather", arguments: '{"location": "SF"}' }
       }]
     },
     {
       role: "tool",
-      content: '{"temperature": 72, "condition": "sunny"}',
+      content: '{"temperature": 72}',
       tool_call_id: "call_123"
     }
   ],
@@ -166,163 +242,43 @@ const openaiWithTools = {
     type: "function",
     function: {
       name: "get_weather",
-      description: "Get weather information",
-      parameters: {
-        type: "object",
-        properties: {
-          location: { type: "string" }
-        }
-      }
+      description: "Get weather info",
+      parameters: { type: "object", properties: { location: { type: "string" } } }
     }
   }]
 }
 
-// Translate to Google Gemini format
-const geminiWithTools = translateBetweenProviders("openai", "google", openaiWithTools)
+// Translate to Google Gemini (functionCall/functionResponse)
+const geminiRequest = translateBetweenProviders("openai", "google", openaiWithTools)
 
-// Result: Google-compatible tool calling format
-// {
-//   contents: [
-//     {
-//       role: "model",
-//       parts: [{
-//         functionCall: {
-//           name: "get_weather", 
-//           args: { location: "San Francisco" }
-//         }
-//       }]
-//     },
-//     {
-//       role: "user",
-//       parts: [{
-//         functionResponse: {
-//           name: "get_weather",
-//           response: { temperature: 72, condition: "sunny" }
-//         }
-//       }]
-//     }
-//   ],
-//   tools: [...]
-// }
+// Translate to Anthropic (tool_use/tool_result blocks)
+const anthropicRequest = translateBetweenProviders("openai", "anthropic", openaiWithTools)
 ```
 
-### 4. **Error Handling & Translation**
+### 6. **Error Handling & Translation**
 
 Unified error handling with provider-specific error translation:
 
 ```typescript
 import { buildUniversalError, translateError } from 'llm-bridge'
 
-// Create a universal error
-const error = buildUniversalError(
-  "rate_limit_error", 
-  "Rate limit exceeded",
-  "openai",
-  { retryAfter: 60 }
-)
+const error = buildUniversalError("rate_limit_error", "Rate limit exceeded", "openai", { retryAfter: 60 })
 
-// Translate to different provider formats
 const anthropicError = translateError(error.universal, "anthropic")
 const googleError = translateError(error.universal, "google")
-
-// Each provider gets the appropriate error format:
-// OpenAI: { error: { type: "insufficient_quota", message: "Rate limit exceeded" } }
-// Anthropic: { type: "error", error: { type: "rate_limit_error", message: "Rate limit exceeded" } }  
-// Google: { error: { code: 429, status: "RESOURCE_EXHAUSTED", message: "Rate limit exceeded" } }
 ```
 
-### 5. **Provider Detection**
+### 7. **Provider Detection**
 
 Automatically detect which provider format you're working with:
 
 ```typescript
 import { detectProvider } from 'llm-bridge'
 
-const provider1 = detectProvider({ model: "gpt-4", messages: [...] })        // "openai"
-const provider2 = detectProvider({ model: "claude-3-opus", max_tokens: 100 }) // "anthropic"  
-const provider3 = detectProvider({ contents: [...] })                        // "google"
-```
-
-## 🏗️ Advanced Usage
-
-### Middleware Pattern
-
-```typescript
-import { toUniversal, fromUniversal } from 'llm-bridge'
-
-// Create a universal middleware
-async function universalLLMMiddleware(request: any, targetProvider: string) {
-  // Convert any provider format to universal
-  const sourceProvider = detectProvider(request)
-  const universal = toUniversal(sourceProvider, request)
-  
-  // Apply universal transformations
-  universal.temperature = Math.min(universal.temperature || 0, 1)
-  universal.max_tokens = Math.min(universal.max_tokens || 1000, 4000)
-  
-  // Convert to target provider
-  const targetRequest = fromUniversal(targetProvider, universal)
-  
-  // Make the API call
-  const response = await callProvider(targetProvider, targetRequest)
-  
-  return response
-}
-
-// Use with any provider
-const result1 = await universalLLMMiddleware(openaiRequest, "anthropic")
-const result2 = await universalLLMMiddleware(anthropicRequest, "google")
-```
-
-### Load Balancing & Fallbacks
-
-```typescript
-async function robustLLMCall(request: any) {
-  const providers = ["openai", "anthropic", "google"]
-  
-  for (const provider of providers) {
-    try {
-      const universal = toUniversal(detectProvider(request), request)
-      const providerRequest = fromUniversal(provider, universal)
-      
-      return await callProvider(provider, providerRequest)
-    } catch (error) {
-      console.log(`${provider} failed, trying next provider...`)
-      continue
-    }
-  }
-  
-  throw new Error("All providers failed")
-}
-```
-
-### Cost Optimization
-
-```typescript
-import { getModelCosts, countUniversalTokens } from 'llm-bridge'
-
-function optimizeModelChoice(request: any) {
-  const universal = toUniversal(detectProvider(request), request)
-  const tokens = countUniversalTokens(universal)
-  
-  const models = [
-    { provider: "openai", model: "gpt-4o-mini" },
-    { provider: "anthropic", model: "claude-3-haiku" },
-    { provider: "google", model: "gemini-1.5-flash" }
-  ]
-  
-  // Calculate cost for each model
-  const costs = models.map(({ provider, model }) => {
-    const modelCosts = getModelCosts(model)
-    const inputCost = (tokens.inputTokens / 1000) * modelCosts.inputCostPer1K
-    const outputCost = (tokens.outputTokens / 1000) * modelCosts.outputCostPer1K
-    
-    return { provider, model, totalCost: inputCost + outputCost }
-  })
-  
-  // Return cheapest option
-  return costs.sort((a, b) => a.totalCost - b.totalCost)[0]
-}
+detectProvider("https://api.openai.com/v1/chat/completions", body)  // "openai"
+detectProvider("https://api.anthropic.com/v1/messages", body)       // "anthropic"
+detectProvider("https://generativelanguage.googleapis.com/...", body) // "google"
+detectProvider("https://api.openai.com/v1/responses", body)         // "openai-responses"
 ```
 
 ## 🔌 API Reference
@@ -330,9 +286,20 @@ function optimizeModelChoice(request: any) {
 ### Core Functions
 
 - `toUniversal(provider, body)` - Convert provider format to universal
-- `fromUniversal(provider, universal)` - Convert universal to provider format  
+- `fromUniversal(provider, universal)` - Convert universal to provider format
 - `translateBetweenProviders(from, to, body)` - Direct provider-to-provider translation
-- `detectProvider(body)` - Auto-detect provider from request format
+- `detectProvider(url, body)` - Auto-detect provider from URL and request format
+
+### Streaming Functions
+
+- `parseOpenAIStream(stream)` - Parse OpenAI Chat Completions SSE stream
+- `parseAnthropicStream(stream)` - Parse Anthropic Messages SSE stream
+- `parseGoogleStream(stream)` - Parse Google Gemini SSE stream
+- `parseOpenAIResponsesStream(stream)` - Parse OpenAI Responses API SSE stream
+- `emitOpenAIStream(events)` - Emit OpenAI SSE format
+- `emitAnthropicStream(events)` - Emit Anthropic SSE format
+- `emitGoogleStream(events)` - Emit Google SSE format
+- `handleUniversalStreamRequest(stream, source, target, transform?)` - Full stream translation pipeline
 
 ### Utility Functions
 
@@ -347,89 +314,6 @@ function optimizeModelChoice(request: any) {
 - `translateError(error, targetProvider)` - Translate error between providers
 - `parseProviderError(error, provider)` - Parse provider-specific errors
 
-## 🎨 Examples
-
-### Multi-Provider Chat Application
-
-```typescript
-import { translateBetweenProviders, detectProvider } from 'llm-bridge'
-
-class UniversalChatBot {
-  async chat(message: string, preferredProvider = "openai") {
-    const request = {
-      model: this.getModelForProvider(preferredProvider),
-      messages: [
-        { role: "system", content: "You are a helpful assistant" },
-        { role: "user", content: message }
-      ],
-      temperature: 0.7
-    }
-    
-    try {
-      // Try preferred provider first
-      return await this.callProvider(preferredProvider, request)
-    } catch (error) {
-      // Fallback to other providers
-      const fallbacks = ["anthropic", "google", "openai"]
-        .filter(p => p !== preferredProvider)
-      
-      for (const provider of fallbacks) {
-        try {
-          const translated = translateBetweenProviders(
-            preferredProvider, 
-            provider, 
-            request
-          )
-          return await this.callProvider(provider, translated)
-        } catch (fallbackError) {
-          continue
-        }
-      }
-      
-      throw new Error("All providers failed")
-    }
-  }
-  
-  private getModelForProvider(provider: string) {
-    const models = {
-      openai: "gpt-4",
-      anthropic: "claude-3-opus-20240229", 
-      google: "gemini-1.5-pro"
-    }
-    return models[provider] || "gpt-4"
-  }
-}
-```
-
-### Image Analysis Across Providers
-
-```typescript
-async function analyzeImage(imageUrl: string, provider: string) {
-  // Create OpenAI-style request
-  const request = {
-    model: "gpt-4-vision-preview", 
-    messages: [{
-      role: "user",
-      content: [
-        { type: "text", text: "Analyze this image in detail" },
-        { type: "image_url", image_url: { url: imageUrl } }
-      ]
-    }]
-  }
-  
-  // Translate to target provider
-  const translated = translateBetweenProviders("openai", provider, request)
-  
-  // Call the provider
-  return await callProvider(provider, translated)
-}
-
-// Works with any provider
-const openaiResult = await analyzeImage(imageUrl, "openai")
-const claudeResult = await analyzeImage(imageUrl, "anthropic") 
-const geminiResult = await analyzeImage(imageUrl, "google")
-```
-
 ## 🧪 Testing
 
 Run the comprehensive test suite:
@@ -439,12 +323,14 @@ npm test
 ```
 
 Our test suite includes:
-- ✅ 146 passing tests
-- ✅ Provider format conversion
-- ✅ Universal format translation
+- ✅ 355+ passing tests
+- ✅ Provider format conversion (OpenAI, Anthropic, Google, OpenAI Responses)
+- ✅ Cross-provider round-trip translation
+- ✅ Streaming parser and emitter tests
+- ✅ Extended thinking and structured output
 - ✅ Multimodal content handling
-- ✅ Tool calling translation
-- ✅ Error handling and translation
+- ✅ Tool calling lifecycle across all providers
+- ✅ Error handling and validation
 - ✅ Edge cases and malformed input
 - ✅ Type safety verification
 

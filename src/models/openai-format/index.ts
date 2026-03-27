@@ -80,6 +80,17 @@ function parseOpenAIContent(
         }
       }
 
+      if (part.type === "input_audio") {
+        return {
+          _original: { provider: "openai", raw: part },
+          media: {
+            data: (part as any).input_audio.data,
+            mimeType: `audio/${(part as any).input_audio.format || "wav"}`,
+          },
+          type: "audio" as const,
+        }
+      }
+
       // Fallback for unknown content types
       return {
         _original: { provider: "openai", raw: part },
@@ -176,6 +187,7 @@ export function openaiToUniversal(body: OpenAIBody): UniversalBody<"openai"> {
       description: tool.function.description || "",
       metadata: {
         type: tool.type,
+        strict: (tool.function as any).strict,
       },
       name: tool.function.name,
       parameters: tool.function.parameters || {},
@@ -191,11 +203,23 @@ export function openaiToUniversal(body: OpenAIBody): UniversalBody<"openai"> {
     provider: "openai",
     provider_params: {
       logprobs: body.logprobs ?? undefined,
+      reasoning_effort: (body as any).reasoning_effort ?? undefined,
       response_format: body.response_format ?? undefined,
       top_logprobs: body.top_logprobs ?? undefined,
+      verbosity: (body as any).verbosity ?? undefined,
+      parallel_tool_calls: (body as any).parallel_tool_calls ?? undefined,
     },
+    reasoning_effort: (body as any).reasoning_effort ?? undefined,
     seed: body.seed ?? undefined,
     stream: body.stream ?? undefined,
+    structured_output: body.response_format?.type === "json_schema"
+      ? {
+          type: "json_schema" as const,
+          json_schema: (body.response_format as any).json_schema,
+        }
+      : body.response_format?.type === "json_object"
+      ? { type: "json_object" as const }
+      : undefined,
     system: systemPrompt,
     temperature: body.temperature ?? undefined,
     tool_choice: body.tool_choice as any,
@@ -219,7 +243,7 @@ function hasMessagesBeenModified(universal: UniversalBody<"openai">): boolean {
   // Check if any messages have contextInjection metadata (indicates injection)
   const hasInjectedMessages = universal.messages.some(m => 
     m.metadata.contextInjection || 
-    !m.metadata.originalIndex // New messages without originalIndex
+    m.metadata.originalIndex === undefined // New messages without originalIndex
   )
   
   return hasInjectedMessages
@@ -266,13 +290,18 @@ export function universalToOpenAI(
       role: msg.role as any,
     }
 
+    // Filter out thinking/redacted_thinking content (OpenAI Chat Completions doesn't support thinking blocks)
+    const filteredContent = msg.content.filter(
+      (c) => c.type !== "thinking" && c.type !== "redacted_thinking"
+    )
+
     // 🎯 CONTENT BACKFILL: Use original content structure when available
     if (
-      msg.content.length === 1 &&
-      msg.content[0]?._original?.provider === "openai"
+      filteredContent.length === 1 &&
+      filteredContent[0]?._original?.provider === "openai"
     ) {
       // Perfect reconstruction from original - but only if it's valid OpenAI content
-      const originalContent = msg.content[0]?._original?.raw
+      const originalContent = filteredContent[0]?._original?.raw
       if (originalContent !== null && originalContent !== undefined) {
         if (typeof originalContent === "string") {
           openaiMessage.content = originalContent
@@ -285,22 +314,22 @@ export function universalToOpenAI(
         } 
         // Fallback to universal format if original is not valid OpenAI content
         else {
-          openaiMessage.content = msg.content[0]?.text || ""
+          openaiMessage.content = filteredContent[0]?.text || ""
         }
       } else {
         // Fallback to universal format if original is not valid OpenAI content
-        openaiMessage.content = msg.content[0]?.text || ""
+        openaiMessage.content = filteredContent[0]?.text || ""
       }
-    } else if (msg.content.length === 1 && msg.content[0]?.type === "text") {
+    } else if (filteredContent.length === 1 && filteredContent[0]?.type === "text") {
       // Simple text message
-      openaiMessage.content = msg.content[0]?.text || ""
-    } else if (msg.content.length === 1 && msg.content[0]?.type === "tool_result") {
+      openaiMessage.content = filteredContent[0]?.text || ""
+    } else if (filteredContent.length === 1 && filteredContent[0]?.type === "tool_result") {
       // Tool result content - OpenAI expects string content for tool messages
-      const result = msg.content[0]?.tool_result?.result
+      const result = filteredContent[0]?.tool_result?.result
       openaiMessage.content = typeof result === "string" ? result : JSON.stringify(result)
     } else {
       // Complex content - reconstruct each part
-      openaiMessage.content = msg.content.map((content) => {
+      openaiMessage.content = filteredContent.map((content) => {
         // 🎯 PER-CONTENT BACKFILL: Use original structure if available
         if (content._original?.provider === "openai") {
           return content._original?.raw as OpenAI.Chat.ChatCompletionContentPart
@@ -386,9 +415,10 @@ export function universalToOpenAI(
           description: tool.description,
           name: tool.name,
           parameters: tool.parameters,
+          strict: tool.metadata?.strict,
         },
         type: "function",
-      }
+      } as OpenAI.Chat.ChatCompletionTool
     })
   }
 
@@ -422,6 +452,32 @@ export function universalToOpenAI(
     }
     if (universal.provider_params.top_logprobs !== undefined) {
       result.top_logprobs = universal.provider_params.top_logprobs
+    }
+    if (universal.provider_params.reasoning_effort !== undefined) {
+      (result as any).reasoning_effort = universal.provider_params.reasoning_effort
+    }
+    if (universal.provider_params.verbosity !== undefined) {
+      (result as any).verbosity = universal.provider_params.verbosity
+    }
+    if (universal.provider_params.parallel_tool_calls !== undefined) {
+      (result as any).parallel_tool_calls = universal.provider_params.parallel_tool_calls
+    }
+  }
+
+  // Write back reasoning_effort from top-level if set and not already written from provider_params
+  if (universal.reasoning_effort !== undefined && !(result as any).reasoning_effort) {
+    (result as any).reasoning_effort = universal.reasoning_effort
+  }
+
+  // 🎯 STRUCTURED OUTPUT: Reconstruct response_format from structured_output if not already set
+  if (universal.structured_output && !result.response_format) {
+    if (universal.structured_output.type === "json_schema" && universal.structured_output.json_schema) {
+      result.response_format = {
+        type: "json_schema",
+        json_schema: universal.structured_output.json_schema,
+      } as any
+    } else if (universal.structured_output.type === "json_object") {
+      result.response_format = { type: "json_object" } as any
     }
   }
 

@@ -3,12 +3,14 @@ import {
   GeminiBody,
   InputBody,
   OpenAIBody,
+  OpenAIResponsesBody,
   ProviderType,
 } from "../types/providers"
 import { UniversalBody } from "../types/universal"
 import { anthropicToUniversal, universalToAnthropic } from "./anthropic-format"
 import { googleToUniversal, universalToGoogle } from "./google-format"
 import { openaiToUniversal, universalToOpenAI } from "./openai-format"
+import { openaiResponsesToUniversal, universalToOpenaiResponses } from "./openai-responses-format"
 
 export function toUniversal<T extends ProviderType>(
   provider: T,
@@ -21,6 +23,8 @@ export function toUniversal<T extends ProviderType>(
       return anthropicToUniversal(body as AnthropicBody) as UniversalBody<T>
     case "google":
       return googleToUniversal(body as GeminiBody) as UniversalBody<T>
+    case "openai-responses":
+      return openaiResponsesToUniversal(body as OpenAIResponsesBody) as UniversalBody<T>
     default:
       throw new Error(`Unsupported provider: ${provider}`)
   }
@@ -43,6 +47,10 @@ export function fromUniversal<T extends ProviderType>(
       return universalToGoogle(
         universal as UniversalBody<"google">,
       ) as InputBody<T>
+    case "openai-responses":
+      return universalToOpenaiResponses(
+        universal as UniversalBody<"openai-responses">,
+      ) as InputBody<T>
     default:
       throw new Error(`Unsupported provider: ${provider}`)
   }
@@ -59,3 +67,5 @@ export * from "./openai-format"
 export * from "./anthropic-format"
 
 export * from "./google-format"
+
+export * from "./openai-responses-format"
