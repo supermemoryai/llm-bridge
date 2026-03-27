@@ -753,9 +753,9 @@ describe("Google (Gemini) format conversion", () => {
 
       const result = fromUniversal("google", universal as any) as any
 
-      expect(result.thinkingConfig).toBeDefined()
-      expect(result.thinkingConfig.thinkingBudget).toBe(2048)
-      expect(result.thinkingConfig.thinkingLevel).toBe("medium")
+      expect(result.generationConfig?.thinkingConfig).toBeDefined()
+      expect(result.generationConfig.thinkingConfig.thinkingBudget).toBe(2048)
+      expect(result.generationConfig.thinkingConfig.thinkingLevel).toBe("medium")
     })
 
     it("should write structured_output as responseMimeType/responseSchema", () => {
