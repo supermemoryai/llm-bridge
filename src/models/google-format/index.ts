@@ -203,7 +203,7 @@ export function googleToUniversal(body: GeminiBody): UniversalBody<"google"> {
   }
 
   // Parse thinking config (nested inside generationConfig per Gemini API)
-  const thinkingConfig = body.generationConfig?.thinkingConfig
+  const thinkingConfig = (body.generationConfig as any)?.thinkingConfig
     || (body as any).thinkingConfig // fallback for old top-level format
   const thinking = thinkingConfig
     ? {

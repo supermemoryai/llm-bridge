@@ -1015,4 +1015,308 @@ describe("Streaming emitter stop_reason mapping", () => {
     const allText = chunks.join("")
     expect(allText).toContain('"stop_reason":"tool_use"')
   })
+
+  // Additional stop_reason mapping tests
+  it("should map Gemini 'STOP' to OpenAI 'stop'", async () => {
+    const { emitOpenAIStream } = await import("../src/streaming/emitters")
+    const events = yieldEvents([
+      { type: "message_start", id: "msg_1", model: "gemini-pro" },
+      { type: "content_delta", delta: { text: "Hello" } },
+      { type: "message_end", stop_reason: "STOP" },
+    ])
+
+    const stream = emitOpenAIStream(events)
+    const chunks = await collectSSE(stream)
+    const allText = chunks.join("")
+    expect(allText).toContain('"finish_reason":"stop"')
+  })
+
+  it("should map 'MAX_TOKENS' to OpenAI 'length'", async () => {
+    const { emitOpenAIStream } = await import("../src/streaming/emitters")
+    const events = yieldEvents([
+      { type: "message_start", id: "msg_1", model: "gemini-pro" },
+      { type: "content_delta", delta: { text: "Hello" } },
+      { type: "message_end", stop_reason: "MAX_TOKENS" },
+    ])
+
+    const stream = emitOpenAIStream(events)
+    const chunks = await collectSSE(stream)
+    const allText = chunks.join("")
+    expect(allText).toContain('"finish_reason":"length"')
+  })
+
+  it("should map 'SAFETY' to OpenAI 'content_filter'", async () => {
+    const { emitOpenAIStream } = await import("../src/streaming/emitters")
+    const events = yieldEvents([
+      { type: "message_start", id: "msg_1", model: "gemini-pro" },
+      { type: "content_delta", delta: { text: "Hello" } },
+      { type: "message_end", stop_reason: "SAFETY" },
+    ])
+
+    const stream = emitOpenAIStream(events)
+    const chunks = await collectSSE(stream)
+    const allText = chunks.join("")
+    expect(allText).toContain('"finish_reason":"content_filter"')
+  })
+
+  it("should map 'stop' to Anthropic 'end_turn'", async () => {
+    const { emitAnthropicStream } = await import("../src/streaming/emitters")
+    const events = yieldEvents([
+      { type: "message_start", id: "msg_1", model: "gpt-4" },
+      { type: "content_delta", delta: { text: "Hello" } },
+      { type: "message_end", stop_reason: "stop" },
+    ])
+
+    const stream = emitAnthropicStream(events)
+    const chunks = await collectSSE(stream)
+    const allText = chunks.join("")
+    expect(allText).toContain('"stop_reason":"end_turn"')
+  })
+
+  it("should map 'content_filter' to Google 'SAFETY'", async () => {
+    const { emitGoogleStream } = await import("../src/streaming/emitters")
+    const events = yieldEvents([
+      { type: "message_start", id: "msg_1", model: "gpt-4" },
+      { type: "content_delta", delta: { text: "Hello" } },
+      { type: "message_end", stop_reason: "content_filter" },
+    ])
+
+    const stream = emitGoogleStream(events)
+    const chunks = await collectSSE(stream)
+    const allText = chunks.join("")
+    expect(allText).toContain('"finishReason":"SAFETY"')
+  })
+
+  it("should map 'tool_use' to Google 'STOP'", async () => {
+    const { emitGoogleStream } = await import("../src/streaming/emitters")
+    const events = yieldEvents([
+      { type: "message_start", id: "msg_1", model: "claude-3" },
+      { type: "tool_call_start", tool_call: { id: "call_1", name: "search" } },
+      { type: "tool_call_delta", tool_call: { id: "call_1", arguments_delta: '{"q":"test"}' } },
+      { type: "tool_call_end", tool_call: { id: "call_1" } },
+      { type: "message_end", stop_reason: "tool_use" },
+    ])
+
+    const stream = emitGoogleStream(events)
+    const chunks = await collectSSE(stream)
+    const allText = chunks.join("")
+    expect(allText).toContain('"finishReason":"STOP"')
+  })
+})
+
+describe("OpenAI Responses format fixes", () => {
+  it("should convert multiple tool_results in user message to function_call_output items", () => {
+    const universal = {
+      messages: [
+        {
+          id: "msg_1",
+          role: "user" as const,
+          content: [
+            {
+              type: "tool_result" as const,
+              tool_result: {
+                tool_call_id: "call_abc",
+                result: "Weather is sunny",
+              },
+            },
+            {
+              type: "tool_result" as const,
+              tool_result: {
+                tool_call_id: "call_def",
+                result: { temperature: 72 },
+              },
+            },
+          ],
+          metadata: {},
+        },
+      ],
+      model: "gpt-4o",
+      provider: "openai-responses" as const,
+      provider_params: {},
+    }
+
+    const result = fromUniversal("openai-responses", universal as any)
+    const input = (result as any).input
+    // Should produce two function_call_output items
+    const outputs = input.filter((i: any) => i.type === "function_call_output")
+    expect(outputs).toHaveLength(2)
+    expect(outputs[0].call_id).toBe("call_abc")
+    expect(outputs[0].output).toBe("Weather is sunny")
+    expect(outputs[1].call_id).toBe("call_def")
+    expect(outputs[1].output).toBe('{"temperature":72}')
+  })
+
+  it("should not produce 'undefined' text from developer messages with missing text", () => {
+    const universal = {
+      messages: [
+        {
+          id: "msg_1",
+          role: "developer" as const,
+          content: [
+            { type: "text" as const },  // text field is undefined
+            { type: "image" as const, media: { url: "https://example.com/img.png" } },
+          ],
+          metadata: {},
+        },
+        {
+          id: "msg_2",
+          role: "user" as const,
+          content: [{ type: "text" as const, text: "Hello" }],
+          metadata: {},
+        },
+      ],
+      model: "gpt-4o",
+      provider: "openai-responses" as const,
+      provider_params: {},
+    }
+
+    const result = fromUniversal("openai-responses", universal as any)
+    const input = (result as any).input
+    const devMsg = input.find((i: any) => i.role === "developer")
+    // Should not contain "undefined" - should be empty string since no valid text blocks
+    expect(devMsg?.content).not.toContain("undefined")
+  })
+})
+
+describe("Google streaming parser fixes", () => {
+  it("should not emit message_end on intermediate chunks with usageMetadata but no finishReason", async () => {
+    const { parseGoogleStream } = await import("../src/streaming/parsers")
+
+    // Simulate Gemini 2.5+ behavior: usageMetadata on every chunk, finishReason only on last
+    const sseData = [
+      JSON.stringify({
+        candidates: [{ content: { parts: [{ text: "Hello" }] } }],
+        usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 1 },
+      }),
+      JSON.stringify({
+        candidates: [{ content: { parts: [{ text: " world" }] } }],
+        usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 5 },
+      }),
+      JSON.stringify({
+        candidates: [{ content: { parts: [{ text: "!" }], role: "model" }, finishReason: "STOP" }],
+        usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 8 },
+      }),
+    ]
+
+    const encoder = new TextEncoder()
+    const stream = new ReadableStream({
+      start(controller) {
+        for (const data of sseData) {
+          controller.enqueue(encoder.encode(`data: ${data}\n\n`))
+        }
+        controller.close()
+      },
+    })
+
+    const events: any[] = []
+    for await (const event of parseGoogleStream(stream)) {
+      events.push(event)
+    }
+
+    // Should have exactly 1 message_end
+    const messageEnds = events.filter((e) => e.type === "message_end")
+    expect(messageEnds).toHaveLength(1)
+    expect(messageEnds[0].stop_reason).toBe("STOP")
+    expect(messageEnds[0].usage).toEqual({ input_tokens: 10, output_tokens: 8 })
+  })
+
+  it("should use last usageMetadata when finishReason chunk has no usageMetadata", async () => {
+    const { parseGoogleStream } = await import("../src/streaming/parsers")
+
+    const sseData = [
+      JSON.stringify({
+        candidates: [{ content: { parts: [{ text: "Hello" }] } }],
+        usageMetadata: { promptTokenCount: 15, candidatesTokenCount: 3 },
+      }),
+      // finishReason chunk without usageMetadata
+      JSON.stringify({
+        candidates: [{ content: { parts: [{ text: " done" }], role: "model" }, finishReason: "STOP" }],
+      }),
+    ]
+
+    const encoder = new TextEncoder()
+    const stream = new ReadableStream({
+      start(controller) {
+        for (const data of sseData) {
+          controller.enqueue(encoder.encode(`data: ${data}\n\n`))
+        }
+        controller.close()
+      },
+    })
+
+    const events: any[] = []
+    for await (const event of parseGoogleStream(stream)) {
+      events.push(event)
+    }
+
+    const messageEnd = events.find((e) => e.type === "message_end")
+    expect(messageEnd).toBeDefined()
+    // Should carry forward usage from earlier chunk
+    expect(messageEnd.usage).toEqual({ input_tokens: 15, output_tokens: 3 })
+  })
+
+  it("should handle recursive schema stripping of unsupported fields when converting cross-provider", () => {
+    // Simulate an OpenAI tool being converted to Google format (cross-provider path)
+    const universal = {
+      messages: [
+        {
+          id: "msg_1",
+          role: "user" as const,
+          content: [{ type: "text" as const, text: "Hello" }],
+          metadata: {},
+        },
+      ],
+      model: "gemini-pro",
+      provider: "google" as const,
+      provider_params: {},
+      tools: [
+        {
+          name: "search",
+          description: "Search the web",
+          parameters: {
+            type: "object",
+            properties: {
+              query: {
+                type: "string",
+                additionalProperties: false,
+                default: "test",
+                examples: ["foo"],
+                deprecated: true,
+                readOnly: true,
+                $comment: "test",
+                $schema: "http://json-schema.org/draft-07/schema#",
+              },
+              nested: {
+                type: "object",
+                properties: {
+                  inner: {
+                    type: "string",
+                    additionalProperties: true,
+                  },
+                },
+                additionalProperties: false,
+              },
+            },
+            additionalProperties: false,
+          },
+          // No _original — simulates cross-provider conversion
+        },
+      ],
+    }
+
+    const result = fromUniversal("google", universal as any)
+    const params = (result as any).tools[0].functionDeclarations[0].parameters
+
+    // All unsupported fields should be stripped at all levels
+    expect(params.additionalProperties).toBeUndefined()
+    expect(params.properties.query.additionalProperties).toBeUndefined()
+    expect(params.properties.query.default).toBeUndefined()
+    expect(params.properties.query.examples).toBeUndefined()
+    expect(params.properties.query.deprecated).toBeUndefined()
+    expect(params.properties.query.readOnly).toBeUndefined()
+    expect(params.properties.query.$comment).toBeUndefined()
+    expect(params.properties.query.$schema).toBeUndefined()
+    expect(params.properties.nested.additionalProperties).toBeUndefined()
+    expect(params.properties.nested.properties.inner.additionalProperties).toBeUndefined()
+  })
 })
