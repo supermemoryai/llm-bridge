@@ -316,6 +316,7 @@ export async function* parseGoogleStream(
   let sentStart = false
   let toolCallCounter = 0
   let emittedEnd = false
+  let lastUsageMetadata: any = null
 
   for await (const sse of parseSSEStream(stream)) {
     if (sse.data === "[DONE]") {
@@ -372,21 +373,23 @@ export async function* parseGoogleStream(
       }
     }
 
-    // Emit message_end when the candidate has a finishReason (stream is done).
-    // Google sometimes sends finishReason without usageMetadata (e.g. in error/
-    // safety-filtered responses), so we must not gate message_end on usageMetadata.
-    // Guard with !emittedEnd to prevent duplicate message_end if finishReason and
-    // usageMetadata arrive in separate chunks.
-    if (!emittedEnd && (candidate?.finishReason || chunk.usageMetadata)) {
+    // Track latest usageMetadata (Gemini 2.5+ sends cumulative counts on every chunk)
+    if (chunk.usageMetadata) {
+      lastUsageMetadata = chunk.usageMetadata
+    }
+
+    // Only emit message_end when finishReason is present (stream is actually done).
+    // Do NOT trigger on usageMetadata alone — Gemini sends it on intermediate chunks too.
+    if (!emittedEnd && candidate?.finishReason) {
       emittedEnd = true
       yield {
         type: "message_end",
-        stop_reason: candidate?.finishReason || "end_turn",
-        ...(chunk.usageMetadata
+        stop_reason: candidate.finishReason,
+        ...(lastUsageMetadata
           ? {
               usage: {
-                input_tokens: chunk.usageMetadata.promptTokenCount ?? 0,
-                output_tokens: chunk.usageMetadata.candidatesTokenCount ?? 0,
+                input_tokens: lastUsageMetadata.promptTokenCount ?? 0,
+                output_tokens: lastUsageMetadata.candidatesTokenCount ?? 0,
               },
             }
           : {}),

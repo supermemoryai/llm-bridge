@@ -127,8 +127,21 @@ export function emitOpenAIStream(
             }
 
             case "message_end": {
-              const finishReason =
-                toolCallIndices.size > 0 ? "tool_calls" : "stop"
+              // Map universal stop_reason to OpenAI finish_reason
+              let finishReason: string
+              if (toolCallIndices.size > 0) {
+                finishReason = "tool_calls"
+              } else if (event.stop_reason === "end_turn" || event.stop_reason === "stop" || event.stop_reason === "STOP") {
+                finishReason = "stop"
+              } else if (event.stop_reason === "tool_use" || event.stop_reason === "tool_calls") {
+                finishReason = "tool_calls"
+              } else if (event.stop_reason === "length" || event.stop_reason === "MAX_TOKENS" || event.stop_reason === "max_tokens") {
+                finishReason = "length"
+              } else if (event.stop_reason === "content_filter" || event.stop_reason === "SAFETY") {
+                finishReason = "content_filter"
+              } else {
+                finishReason = "stop"
+              }
               const chunk: any = {
                 id: messageId,
                 object: "chat.completion.chunk",
@@ -346,10 +359,21 @@ export function emitAnthropicStream(
             case "message_end": {
               // Close any open content block before ending message
               closeCurrentBlock()
+              // Map universal stop_reason to Anthropic stop_reason
+              let anthropicStopReason: string
+              if (event.stop_reason === "stop" || event.stop_reason === "end_turn" || event.stop_reason === "STOP") {
+                anthropicStopReason = "end_turn"
+              } else if (event.stop_reason === "tool_calls" || event.stop_reason === "tool_use") {
+                anthropicStopReason = "tool_use"
+              } else if (event.stop_reason === "length" || event.stop_reason === "max_tokens" || event.stop_reason === "MAX_TOKENS") {
+                anthropicStopReason = "max_tokens"
+              } else {
+                anthropicStopReason = event.stop_reason || "end_turn"
+              }
               const deltaData = {
                 type: "message_delta",
                 delta: {
-                  stop_reason: event.stop_reason || "end_turn",
+                  stop_reason: anthropicStopReason,
                   stop_sequence: null,
                 },
                 usage: event.usage
@@ -766,10 +790,23 @@ export function emitGoogleStream(
             }
 
             case "message_end": {
+              // Map universal stop_reason to Gemini finishReason
+              let geminiFinishReason: string
+              if (event.stop_reason === "end_turn" || event.stop_reason === "stop" || event.stop_reason === "STOP") {
+                geminiFinishReason = "STOP"
+              } else if (event.stop_reason === "tool_use" || event.stop_reason === "tool_calls") {
+                geminiFinishReason = "STOP"
+              } else if (event.stop_reason === "length" || event.stop_reason === "max_tokens" || event.stop_reason === "MAX_TOKENS") {
+                geminiFinishReason = "MAX_TOKENS"
+              } else if (event.stop_reason === "content_filter" || event.stop_reason === "SAFETY") {
+                geminiFinishReason = "SAFETY"
+              } else {
+                geminiFinishReason = event.stop_reason || "STOP"
+              }
               const chunk: any = {
                 candidates: [
                   {
-                    finishReason: event.stop_reason === "end_turn" ? "STOP" : event.stop_reason,
+                    finishReason: geminiFinishReason,
                     content: { parts: [], role: "model" },
                   },
                 ],

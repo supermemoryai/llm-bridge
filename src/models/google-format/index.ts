@@ -8,6 +8,32 @@ import {
   UniversalTool,
 } from "../../types/universal"
 
+// Gemini only supports a subset of JSON Schema. Strip fields it rejects.
+const UNSUPPORTED_SCHEMA_KEYS = new Set([
+  "$schema", "$id", "$ref", "$comment", "$defs", "definitions",
+  "additionalProperties", "patternProperties", "propertyNames", "unevaluatedProperties",
+  "const", "oneOf", "allOf", "not", "prefixItems",
+  "if", "then", "else",
+  "exclusiveMinimum", "exclusiveMaximum",
+  "dependentSchemas", "dependentRequired",
+  "contentEncoding", "contentMediaType", "contentSchema",
+  "deprecated", "readOnly", "writeOnly", "examples", "default",
+])
+
+function stripUnsupportedSchemaFields(obj: unknown): unknown {
+  if (Array.isArray(obj)) return obj.map(stripUnsupportedSchemaFields)
+  if (obj && typeof obj === "object") {
+    const out: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(obj)) {
+      if (!UNSUPPORTED_SCHEMA_KEYS.has(k)) {
+        out[k] = stripUnsupportedSchemaFields(v)
+      }
+    }
+    return out
+  }
+  return obj
+}
+
 function mapThinkingLevel(level: string | undefined): "low" | "medium" | "high" | undefined {
   if (!level) return undefined
   if (level === "minimal" || level === "low") return "low"
@@ -96,7 +122,7 @@ function parseGoogleContent(parts: any[]): UniversalContent[] {
         _original: { provider: "google", raw: part },
         tool_call: {
           arguments: part.functionCall.args,
-          id: `call_${Date.now()}`,
+          id: part.functionCall.id || generateId(),
           metadata: {
             args: part.functionCall.args,
           },
@@ -168,7 +194,7 @@ export function googleToUniversal(body: GeminiBody): UniversalBody<"google"> {
     body.systemInstruction &&
     typeof body.systemInstruction === "object" &&
     "parts" in body.systemInstruction &&
-    body.systemInstruction.parts
+    Array.isArray(body.systemInstruction.parts)
   ) {
     systemPrompt = body.systemInstruction.parts
       .filter((part: any) => part.text)
@@ -176,8 +202,9 @@ export function googleToUniversal(body: GeminiBody): UniversalBody<"google"> {
       .join(" ")
   }
 
-  // Parse thinking config
-  const thinkingConfig = (body as any).thinkingConfig
+  // Parse thinking config (nested inside generationConfig per Gemini API)
+  const thinkingConfig = (body.generationConfig as any)?.thinkingConfig
+    || (body as any).thinkingConfig // fallback for old top-level format
   const thinking = thinkingConfig
     ? {
         enabled: true,
@@ -211,11 +238,11 @@ export function googleToUniversal(body: GeminiBody): UniversalBody<"google"> {
     _original: { provider: "google", raw: body },
     max_tokens: body.generationConfig?.maxOutputTokens,
     messages: universalMessages,
-    model: "gemini-pro", // Google doesn't always include model in request
+    model: (body as any).model || "gemini-pro",
     provider: "google",
     provider_params: {
       generation_config: body.generationConfig,
-      safety_settings: body.safetySettings,
+      ...(body.safetySettings ? { safety_settings: body.safetySettings } : {}),
       ...(builtinTools && builtinTools.length > 0 ? { builtin_tools: builtinTools } : {}),
     },
     stream: false,
@@ -261,6 +288,16 @@ export function universalToGoogle(
   const developerMessages = universal.messages.filter(msg => msg.role === "developer")
   const regularMessages = universal.messages.filter(msg => msg.role !== "system" && msg.role !== "developer")
 
+  // Build tool_call_id -> name lookup (Anthropic tool_results lack the name)
+  const toolNameMap = new Map<string, string>()
+  for (const msg of regularMessages) {
+    for (const c of msg.content) {
+      if (c.type === "tool_call" && c.tool_call) {
+        toolNameMap.set(c.tool_call.id, c.tool_call.name)
+      }
+    }
+  }
+
   // Convert universal messages back to Google format
   const contents = regularMessages.map((msg) => ({
     parts: msg.content.map((content) => {
@@ -278,6 +315,10 @@ export function universalToGoogle(
       // Handle thinking content before text
       if (content.type === "thinking") {
         return { thought: true, text: content.thinking || "" }
+      }
+      if (content.type === "redacted_thinking") {
+        // Redacted thinking can't be reconstructed; emit an empty thought marker
+        return { thought: true, text: "" }
       }
       if (content.type === "text") {
         return { text: content.text }
@@ -310,6 +351,15 @@ export function universalToGoogle(
         }
       }
       if (content.type === "document") {
+        // Prefer fileData when a URI is available (e.g. Google Cloud Storage)
+        if (content.media?.fileUri) {
+          return {
+            fileData: {
+              fileUri: content.media.fileUri,
+              mimeType: content.media.mimeType || "application/pdf",
+            },
+          }
+        }
         return {
           inlineData: {
             data: content.media!.data,
@@ -327,10 +377,29 @@ export function universalToGoogle(
         }
       }
       if (content.type === "tool_result") {
+        // Gemini requires response to be a plain JSON object (protobuf Struct)
+        const raw = content.tool_result!.result
+        let response: Record<string, unknown>
+        if (typeof raw === "string") {
+          response = { output: raw }
+        } else if (Array.isArray(raw)) {
+          // Anthropic sends content block arrays — flatten text out
+          const text = raw
+            .map((b: any) => (typeof b === "string" ? b : b.text || JSON.stringify(b)))
+            .join("\n")
+          response = { output: text }
+        } else if (raw && typeof raw === "object") {
+          response = raw as Record<string, unknown>
+        } else {
+          response = { output: JSON.stringify(raw) }
+        }
+        const toolName = content.tool_result!.name
+          || toolNameMap.get(content.tool_result!.tool_call_id) || "unknown"
         return {
           functionResponse: {
-            name: content.tool_result!.name,
-            response: content.tool_result!.result,
+            id: content.tool_result!.tool_call_id,
+            name: toolName,
+            response,
           },
         }
       }
@@ -339,10 +408,30 @@ export function universalToGoogle(
       return { text: JSON.stringify(content) }
     }) as any,
     role: msg.role === "assistant" ? "model" : msg.role,
-  })) as any
+  }))
+
+  // Append message-level tool_calls as functionCall parts (cross-provider: OpenAI stores them at message level)
+  for (let i = 0; i < regularMessages.length; i++) {
+    const msg = regularMessages[i]
+    if (msg.tool_calls && msg.tool_calls.length > 0) {
+      const existingParts = contents[i]?.parts || []
+      // Only add if not already present in content (avoid duplicates)
+      if (!existingParts.some((p: any) => p.functionCall)) {
+        contents[i] = {
+          ...contents[i],
+          parts: [
+            ...existingParts,
+            ...msg.tool_calls.map((tc) => ({
+              functionCall: { id: tc.id, name: tc.name, args: tc.arguments },
+            })),
+          ],
+        }
+      }
+    }
+  }
 
   const result: GeminiBody = {
-    contents,
+    contents: contents as any,
   }
 
   // Add system instruction if present
@@ -412,7 +501,7 @@ export function universalToGoogle(
           return {
             description: tool.description,
             name: tool.name,
-            parameters: tool.parameters,
+            parameters: stripUnsupportedSchemaFields(tool.parameters),
           }
         }),
       },
@@ -453,12 +542,19 @@ export function universalToGoogle(
     }
   }
 
-  // Write back thinking config
+  // Write back thinking config (nested inside generationConfig)
+  // Gemini caps thinkingBudget at 24576 — clamp any larger value from other providers
   if (universal.thinking?.enabled) {
-    (result as any).thinkingConfig = {
-      ...(universal.thinking.budget_tokens ? { thinkingBudget: universal.thinking.budget_tokens } : {}),
-      ...(universal.thinking.effort ? { thinkingLevel: universal.thinking.effort } : {}),
-    }
+    const GEMINI_MAX_THINKING_BUDGET = 24576
+    result.generationConfig = {
+      ...result.generationConfig,
+      thinkingConfig: {
+        ...(universal.thinking.budget_tokens
+          ? { thinkingBudget: Math.min(universal.thinking.budget_tokens, GEMINI_MAX_THINKING_BUDGET) }
+          : {}),
+        ...(universal.thinking.effort ? { thinkingLevel: universal.thinking.effort } : {}),
+      },
+    } as any
   }
 
   // Write back structured output as responseMimeType/responseSchema

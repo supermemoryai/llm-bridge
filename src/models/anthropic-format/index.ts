@@ -304,6 +304,7 @@ export function universalToAnthropic(
               source: {
                 type: "url",
                 url: content.media.url,
+                ...(content.media.mimeType ? { media_type: content.media.mimeType } : {}),
               },
               type: "image",
             }
@@ -350,11 +351,26 @@ export function universalToAnthropic(
       role: msg.role as "user" | "assistant",
     }
 
+    // Reconstruct tool_use blocks from message-level tool_calls (cross-provider translation)
+    // OpenAI stores tool calls at the message level, not in content blocks
+    if (msg.tool_calls && msg.tool_calls.length > 0) {
+      const toolUseBlocks = msg.tool_calls.map((tc) => ({
+        id: tc.id,
+        input: tc.arguments || {},
+        name: tc.name,
+        type: "tool_use" as const,
+      }))
+      anthropicMessage.content = [
+        ...(Array.isArray(anthropicMessage.content) ? anthropicMessage.content : []),
+        ...toolUseBlocks,
+      ] as any
+    }
+
     return anthropicMessage
   })
 
   const result: AnthropicBody = {
-    max_tokens: universal.max_tokens!,
+    max_tokens: universal.max_tokens ?? 1024,
     messages,
     model: universal.model,
     stream: universal.stream,
@@ -364,16 +380,26 @@ export function universalToAnthropic(
 
   // Add system if present
   if (universal.system) {
-    result.system =
-      typeof universal.system === "string"
-        ? universal.system
-        : universal.system.content
+    if (typeof universal.system === "string") {
+      result.system = universal.system
+    } else if (universal.system.cache_control) {
+      // Reconstruct as array of text blocks with cache_control for prompt caching
+      result.system = [
+        {
+          type: "text",
+          text: universal.system.content,
+          cache_control: universal.system.cache_control,
+        },
+      ] as any
+    } else {
+      result.system = universal.system.content
+    }
   }
 
   // If there are developer messages, append their text to the system prompt
   if (developerMessages.length > 0) {
     const developerText = developerMessages
-      .flatMap(m => m.content.filter(c => c.type === "text").map(c => c.text))
+      .flatMap(m => m.content.filter(c => c.type === "text" && c.text).map(c => c.text!))
       .join("\n")
 
     if (result.system) {

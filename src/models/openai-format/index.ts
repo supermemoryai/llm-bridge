@@ -35,6 +35,11 @@ function extractSystemFromOpenAIMessages(
 function parseOpenAIContent(
   content: OpenAI.Chat.ChatCompletionMessageParam["content"],
 ): UniversalContent[] {
+  // null/undefined content is common for assistant messages with tool_calls
+  if (content === null || content === undefined) {
+    return []
+  }
+
   if (typeof content === "string") {
     return [
       {
@@ -100,10 +105,11 @@ function parseOpenAIContent(
     })
   }
 
+  // Unknown content type — preserve as JSON text
   return [
     {
       _original: { provider: "openai", raw: content },
-      text: JSON.stringify(content),
+      text: JSON.stringify(content) || "",
       type: "text",
     },
   ]
@@ -112,14 +118,25 @@ function parseOpenAIContent(
 function parseOpenAIToolCalls(
   tool_calls: OpenAI.Chat.ChatCompletionMessageToolCall[],
 ): UniversalToolCall[] {
-  return tool_calls.map((tc) => ({
-    arguments: JSON.parse(tc.function.arguments),
-    id: tc.id,
-    metadata: {
-      type: tc.type,
-    },
-    name: tc.function.name,
-  }))
+  return tool_calls.map((tc) => {
+    let args: Record<string, unknown> = {}
+    let parseFailed = false
+    try {
+      args = JSON.parse(tc.function.arguments)
+    } catch {
+      // Malformed JSON arguments — preserve as raw string in metadata
+      parseFailed = true
+    }
+    return {
+      arguments: args,
+      id: tc.id,
+      metadata: {
+        type: tc.type,
+        ...(parseFailed ? { raw_arguments: tc.function.arguments } : {}),
+      },
+      name: tc.function.name,
+    }
+  })
 }
 
 export function openaiToUniversal(body: OpenAIBody): UniversalBody<"openai"> {
@@ -343,12 +360,26 @@ export function universalToOpenAI(
           }
         }
         if (content.type === "image") {
+          // Reconstruct data URL from base64 if no URL is available
+          const imageUrl = content.media?.url
+            || (content.media?.data && content.media?.mimeType
+              ? `data:${content.media.mimeType};base64,${content.media.data}`
+              : content.media?.data || "")
           return {
             image_url: {
               detail: content.media?.detail,
-              url: content.media?.url,
+              url: imageUrl,
             },
             type: "image_url",
+          }
+        }
+        if (content.type === "audio") {
+          return {
+            input_audio: {
+              data: content.media?.data || "",
+              format: content.media?.mimeType?.split("/")[1] || "wav",
+            },
+            type: "input_audio",
           }
         }
 
@@ -361,40 +392,39 @@ export function universalToOpenAI(
     }
 
     // 🎯 TOOL CALLS BACKFILL: Handle tool calls with original preservation
-    if (msg.tool_calls) {
-      ;(openaiMessage as any).tool_calls = msg.tool_calls.map((tc) => {
-        // Check if we have original tool call data
-        if (
-          tc.metadata &&
-          "type" in tc.metadata &&
-          tc.metadata.type === "function"
-        ) {
-          return {
-            function: {
-              arguments: JSON.stringify(tc.arguments),
-              name: tc.name,
-            },
-            id: tc.id,
-            type: "function",
-          }
-        }
-
-        // Fallback to universal format
-        return {
-          function: {
-            arguments: JSON.stringify(tc.arguments),
-            name: tc.name,
-          },
-          id: tc.id,
-          type: "function",
-        }
-      })
+    // Also extract tool_calls from content blocks (cross-provider: Google/Anthropic store them in content)
+    const contentToolCalls = msg.content
+      .filter(c => c.type === "tool_call" && c.tool_call)
+      .map(c => c.tool_call!)
+    const allToolCalls = [
+      ...(msg.tool_calls || []),
+      ...contentToolCalls,
+    ]
+    if (allToolCalls.length > 0) {
+      // OpenAI requires content: null for assistant messages with tool_calls
+      if (!openaiMessage.content || (Array.isArray(openaiMessage.content) && openaiMessage.content.length === 0)) {
+        openaiMessage.content = null as any
+      }
+      ;(openaiMessage as any).tool_calls = allToolCalls.map((tc) => ({
+        function: {
+          arguments: JSON.stringify(tc.arguments),
+          name: tc.name,
+        },
+        id: tc.id,
+        type: "function",
+      }))
     }
 
     // 🎯 METADATA BACKFILL: Restore OpenAI-specific fields
     if (msg.role === "tool") {
-      ;(openaiMessage as any).name = msg.metadata.name
+      // tool_call_id can come from metadata or from the tool_result content
+      const toolResult = msg.content.find(c => c.type === "tool_result")
       ;(openaiMessage as any).tool_call_id = msg.metadata.tool_call_id
+        || toolResult?.tool_result?.tool_call_id
+        || ""
+      if (msg.metadata.name || toolResult?.tool_result?.name) {
+        ;(openaiMessage as any).name = msg.metadata.name || toolResult?.tool_result?.name
+      }
     }
 
     messages.push(openaiMessage)
