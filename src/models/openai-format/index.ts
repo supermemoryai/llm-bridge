@@ -120,18 +120,19 @@ function parseOpenAIToolCalls(
 ): UniversalToolCall[] {
   return tool_calls.map((tc) => {
     let args: Record<string, unknown> = {}
+    let parseFailed = false
     try {
       args = JSON.parse(tc.function.arguments)
     } catch {
       // Malformed JSON arguments — preserve as raw string in metadata
-      args = {}
+      parseFailed = true
     }
     return {
       arguments: args,
       id: tc.id,
       metadata: {
         type: tc.type,
-        ...(args && Object.keys(args).length === 0 ? { raw_arguments: tc.function.arguments } : {}),
+        ...(parseFailed ? { raw_arguments: tc.function.arguments } : {}),
       },
       name: tc.function.name,
     }
@@ -400,39 +401,18 @@ export function universalToOpenAI(
       ...contentToolCalls,
     ]
     if (allToolCalls.length > 0) {
-      // When we have tool calls, ensure content is set (OpenAI requires content: null for tool call messages)
+      // OpenAI requires content: null for assistant messages with tool_calls
       if (!openaiMessage.content || (Array.isArray(openaiMessage.content) && openaiMessage.content.length === 0)) {
         openaiMessage.content = null as any
       }
-    }
-    if (allToolCalls.length > 0) {
-      ;(openaiMessage as any).tool_calls = allToolCalls.map((tc) => {
-        // Check if we have original tool call data
-        if (
-          tc.metadata &&
-          "type" in tc.metadata &&
-          tc.metadata.type === "function"
-        ) {
-          return {
-            function: {
-              arguments: JSON.stringify(tc.arguments),
-              name: tc.name,
-            },
-            id: tc.id,
-            type: "function",
-          }
-        }
-
-        // Fallback to universal format
-        return {
-          function: {
-            arguments: JSON.stringify(tc.arguments),
-            name: tc.name,
-          },
-          id: tc.id,
-          type: "function",
-        }
-      })
+      ;(openaiMessage as any).tool_calls = allToolCalls.map((tc) => ({
+        function: {
+          arguments: JSON.stringify(tc.arguments),
+          name: tc.name,
+        },
+        id: tc.id,
+        type: "function",
+      }))
     }
 
     // 🎯 METADATA BACKFILL: Restore OpenAI-specific fields

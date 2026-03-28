@@ -122,7 +122,7 @@ function parseGoogleContent(parts: any[]): UniversalContent[] {
         _original: { provider: "google", raw: part },
         tool_call: {
           arguments: part.functionCall.args,
-          id: part.functionCall.id || `call_${Date.now()}`,
+          id: part.functionCall.id || generateId(),
           metadata: {
             args: part.functionCall.args,
           },
@@ -411,32 +411,27 @@ export function universalToGoogle(
   }))
 
   // Append message-level tool_calls as functionCall parts (cross-provider: OpenAI stores them at message level)
-  for (const msg of regularMessages) {
+  for (let i = 0; i < regularMessages.length; i++) {
+    const msg = regularMessages[i]
     if (msg.tool_calls && msg.tool_calls.length > 0) {
-      const msgIndex = regularMessages.indexOf(msg)
-      const existingParts = contents[msgIndex]?.parts || []
-      const toolCallParts = msg.tool_calls.map((tc) => ({
-        functionCall: {
-          id: tc.id,
-          name: tc.name,
-          args: tc.arguments,
-        },
-      }))
+      const existingParts = contents[i]?.parts || []
       // Only add if not already present in content (avoid duplicates)
-      const hasContentToolCalls = existingParts.some((p: any) => p.functionCall)
-      if (!hasContentToolCalls) {
-        contents[msgIndex] = {
-          ...contents[msgIndex],
-          parts: [...existingParts, ...toolCallParts],
+      if (!existingParts.some((p: any) => p.functionCall)) {
+        contents[i] = {
+          ...contents[i],
+          parts: [
+            ...existingParts,
+            ...msg.tool_calls.map((tc) => ({
+              functionCall: { id: tc.id, name: tc.name, args: tc.arguments },
+            })),
+          ],
         }
       }
     }
   }
 
-  const typedContents = contents as any
-
   const result: GeminiBody = {
-    contents: typedContents,
+    contents: contents as any,
   }
 
   // Add system instruction if present
