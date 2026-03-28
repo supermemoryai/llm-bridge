@@ -192,23 +192,29 @@ export function universalToOpenaiResponses(universal: UniversalBody<"openai-resp
   for (const msg of universal.messages) {
     // Handle developer role
     if (msg.role === "developer") {
-      const text = msg.content.filter(c => c.type === "text").map(c => c.text).join(" ")
+      const text = msg.content.filter(c => c.type === "text" && c.text).map(c => c.text!).join(" ")
       input.push({ role: "developer", content: text })
       continue
     }
 
     // Handle tool results → function_call_output
-    if (msg.role === "tool") {
-      const toolResult = msg.content.find(c => c.type === "tool_result")
-      if (toolResult?.tool_result) {
-        input.push({
-          type: "function_call_output",
-          call_id: toolResult.tool_result.tool_call_id || msg.metadata?.tool_call_id,
-          output: typeof toolResult.tool_result.result === "string"
-            ? toolResult.tool_result.result
-            : JSON.stringify(toolResult.tool_result.result),
-        })
-        continue
+    // Check both "tool" role and messages containing tool_result content (e.g. from Anthropic user messages)
+    const toolResults = msg.content.filter(c => c.type === "tool_result")
+    if (msg.role === "tool" || toolResults.length > 0) {
+      if (toolResults.length > 0) {
+        for (const toolResult of toolResults) {
+          if (toolResult.tool_result) {
+            input.push({
+              type: "function_call_output",
+              call_id: toolResult.tool_result.tool_call_id || msg.metadata?.tool_call_id,
+              output: typeof toolResult.tool_result.result === "string"
+                ? toolResult.tool_result.result
+                : JSON.stringify(toolResult.tool_result.result),
+            })
+          }
+        }
+        // If the message ONLY had tool results, skip adding it as a regular message
+        if (toolResults.length === msg.content.length) continue
       }
     }
 

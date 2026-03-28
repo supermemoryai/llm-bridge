@@ -122,7 +122,7 @@ function parseGoogleContent(parts: any[]): UniversalContent[] {
         _original: { provider: "google", raw: part },
         tool_call: {
           arguments: part.functionCall.args,
-          id: `call_${Date.now()}`,
+          id: part.functionCall.id || `call_${Date.now()}`,
           metadata: {
             args: part.functionCall.args,
           },
@@ -194,7 +194,7 @@ export function googleToUniversal(body: GeminiBody): UniversalBody<"google"> {
     body.systemInstruction &&
     typeof body.systemInstruction === "object" &&
     "parts" in body.systemInstruction &&
-    body.systemInstruction.parts
+    Array.isArray(body.systemInstruction.parts)
   ) {
     systemPrompt = body.systemInstruction.parts
       .filter((part: any) => part.text)
@@ -238,11 +238,11 @@ export function googleToUniversal(body: GeminiBody): UniversalBody<"google"> {
     _original: { provider: "google", raw: body },
     max_tokens: body.generationConfig?.maxOutputTokens,
     messages: universalMessages,
-    model: "gemini-pro", // Google doesn't always include model in request
+    model: (body as any).model || "gemini-pro",
     provider: "google",
     provider_params: {
       generation_config: body.generationConfig,
-      safety_settings: body.safetySettings,
+      ...(body.safetySettings ? { safety_settings: body.safetySettings } : {}),
       ...(builtinTools && builtinTools.length > 0 ? { builtin_tools: builtinTools } : {}),
     },
     stream: false,
@@ -316,6 +316,10 @@ export function universalToGoogle(
       if (content.type === "thinking") {
         return { thought: true, text: content.thinking || "" }
       }
+      if (content.type === "redacted_thinking") {
+        // Redacted thinking can't be reconstructed; emit an empty thought marker
+        return { thought: true, text: "" }
+      }
       if (content.type === "text") {
         return { text: content.text }
       }
@@ -347,6 +351,15 @@ export function universalToGoogle(
         }
       }
       if (content.type === "document") {
+        // Prefer fileData when a URI is available (e.g. Google Cloud Storage)
+        if (content.media?.fileUri) {
+          return {
+            fileData: {
+              fileUri: content.media.fileUri,
+              mimeType: content.media.mimeType || "application/pdf",
+            },
+          }
+        }
         return {
           inlineData: {
             data: content.media!.data,
@@ -384,6 +397,7 @@ export function universalToGoogle(
           || toolNameMap.get(content.tool_result!.tool_call_id) || "unknown"
         return {
           functionResponse: {
+            id: content.tool_result!.tool_call_id,
             name: toolName,
             response,
           },
@@ -394,10 +408,35 @@ export function universalToGoogle(
       return { text: JSON.stringify(content) }
     }) as any,
     role: msg.role === "assistant" ? "model" : msg.role,
-  })) as any
+  }))
+
+  // Append message-level tool_calls as functionCall parts (cross-provider: OpenAI stores them at message level)
+  for (const msg of regularMessages) {
+    if (msg.tool_calls && msg.tool_calls.length > 0) {
+      const msgIndex = regularMessages.indexOf(msg)
+      const existingParts = contents[msgIndex]?.parts || []
+      const toolCallParts = msg.tool_calls.map((tc) => ({
+        functionCall: {
+          id: tc.id,
+          name: tc.name,
+          args: tc.arguments,
+        },
+      }))
+      // Only add if not already present in content (avoid duplicates)
+      const hasContentToolCalls = existingParts.some((p: any) => p.functionCall)
+      if (!hasContentToolCalls) {
+        contents[msgIndex] = {
+          ...contents[msgIndex],
+          parts: [...existingParts, ...toolCallParts],
+        }
+      }
+    }
+  }
+
+  const typedContents = contents as any
 
   const result: GeminiBody = {
-    contents,
+    contents: typedContents,
   }
 
   // Add system instruction if present
