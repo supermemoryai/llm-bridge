@@ -44,6 +44,9 @@
     "@google/generative-ai": "^0.24.1",
     "openai": "^5.8.2"
   },
-  "dependencies": {
+  "dependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/supermemoryai/llm-bridge.git"
   }
 }
