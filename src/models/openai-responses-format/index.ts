@@ -166,6 +166,32 @@ export function openaiResponsesToUniversal(body: OpenAIResponsesBody): Universal
   }
 }
 
+/**
+ * Normalize a tool call ID for use with the OpenAI Responses API.
+ *
+ * OpenAI's Responses API is stateful and validates that every `function_call_output`
+ * item references a `function_call` item it knows about.  When conversation history
+ * originates from a different provider (e.g. Anthropic's `srvtoolu_*` prefix), the
+ * IDs are foreign to OpenAI and it returns a 404 "Item not found" error.
+ *
+ * We remap any non-OpenAI-style ID to a stable `call_<hash>` string so that the
+ * `function_call` and its paired `function_call_output` always carry the same
+ * remapped ID within a single request.
+ */
+function normalizeCallId(originalId: string, idMap: Map<string, string>): string {
+  // OpenAI-native call IDs already start with "call_"
+  if (originalId.startsWith("call_")) return originalId
+  if (idMap.has(originalId)) return idMap.get(originalId)!
+  // Derive a stable short hash from the original ID so reruns are deterministic
+  let hash = 0
+  for (let i = 0; i < originalId.length; i++) {
+    hash = (Math.imul(31, hash) + originalId.charCodeAt(i)) | 0
+  }
+  const remapped = `call_${Math.abs(hash).toString(36)}`
+  idMap.set(originalId, remapped)
+  return remapped
+}
+
 export function universalToOpenaiResponses(universal: UniversalBody<"openai-responses">): OpenAIResponsesBody {
   // If we have the original and no modifications, use it directly
   if (universal._original?.provider === "openai-responses") {
@@ -181,6 +207,8 @@ export function universalToOpenaiResponses(universal: UniversalBody<"openai-resp
   }
 
   const input: any[] = []
+  // Map from original (possibly cross-provider) tool call IDs to OpenAI-compatible IDs
+  const callIdMap = new Map<string, string>()
 
   // Add system message
   if (universal.system) {
@@ -204,9 +232,11 @@ export function universalToOpenaiResponses(universal: UniversalBody<"openai-resp
       if (toolResults.length > 0) {
         for (const toolResult of toolResults) {
           if (toolResult.tool_result) {
+            const rawId = toolResult.tool_result.tool_call_id || msg.metadata?.tool_call_id || ""
+            const callId = rawId ? normalizeCallId(rawId, callIdMap) : rawId
             input.push({
               type: "function_call_output",
-              call_id: toolResult.tool_result.tool_call_id || msg.metadata?.tool_call_id,
+              call_id: callId,
               output: typeof toolResult.tool_result.result === "string"
                 ? toolResult.tool_result.result
                 : JSON.stringify(toolResult.tool_result.result),
@@ -239,7 +269,24 @@ export function universalToOpenaiResponses(universal: UniversalBody<"openai-resp
         // Skip thinking content
         continue
       } else if (content.type === "tool_call") {
-        // Tool calls are not inline in Responses API input
+        // Emit a function_call item so OpenAI's Responses API has a record of the tool
+        // invocation before its paired function_call_output.  Without this, OpenAI returns
+        // a 404 "Item not found" when it receives a function_call_output whose call_id it
+        // has never seen — which happens whenever the conversation history was produced by
+        // a different provider (e.g. Anthropic generates srvtoolu_* IDs that OpenAI
+        // doesn't recognise).
+        if (content.tool_call) {
+          const rawId = content.tool_call.id || ""
+          const callId = rawId ? normalizeCallId(rawId, callIdMap) : rawId
+          input.push({
+            type: "function_call",
+            call_id: callId,
+            name: content.tool_call.name || "",
+            arguments: typeof content.tool_call.arguments === "string"
+              ? content.tool_call.arguments
+              : JSON.stringify(content.tool_call.arguments || {}),
+          })
+        }
         continue
       }
     }
