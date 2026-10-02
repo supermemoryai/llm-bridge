@@ -12,7 +12,7 @@ jobs:
 
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: ["peak-ubuntu-24.04-4", windows-latest]
         node-version: [18.x]
 
     runs-on: ${{ matrix.os }}
@@ -46,7 +46,7 @@ jobs:
         run: pnpm test
 
   publish:
-    runs-on: ubuntu-latest
+    runs-on: "peak-ubuntu-24.04-4"
     needs: ["test"]
     if: "!contains(github.event.head_commit.message, 'skip-release') && !contains(github.event.head_commit.message, 'skip-ci') && github.event_name != 'pull_request'"
     permissions:
