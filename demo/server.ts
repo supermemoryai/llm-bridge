@@ -33,7 +33,7 @@ const PROVIDERS: Record<
     streamPath: "/v1/chat/completions",
   },
   anthropic: {
-    name: "Anthropic (Claude Sonnet 4)",
+    name: "Anthropic (Claude Sonnet 5.5)",
     key: process.env.ANTHROPIC_API_KEY,
     baseUrl: "https://api.anthropic.com",
     model: "claude-sonnet-5-5",
@@ -73,6 +73,8 @@ function buildProviderRequest(
   }
 
   if (provider === "anthropic") {
+    // claude-sonnet-5-5 rejects sampling parameters with a 400 error
+    const { temperature, top_p, top_k, ...rest } = body
     return {
       url: `${cfg.baseUrl}/v1/messages`,
       headers: {
@@ -81,7 +83,7 @@ function buildProviderRequest(
         "anthropic-version": "2023-06-01",
       },
       body: {
-        ...body,
+        ...rest,
         model: body.model || cfg.model,
         max_tokens: body.max_tokens || 4096,
         stream,
