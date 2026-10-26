@@ -16,13 +16,13 @@ describe("Validation", () => {
 
     it("should handle Anthropic with empty messages", () => {
       const body = {
-        model: "claude-3-5-sonnet-20241022",
+        model: "claude-sonnet-5-5",
         max_tokens: 1024,
         messages: [],
       } as any
       const result = anthropicToUniversal(body)
       expect(result.messages).toEqual([])
-      expect(result.model).toBe("claude-3-5-sonnet-20241022")
+      expect(result.model).toBe("claude-sonnet-5-5")
       expect(result.provider).toBe("anthropic")
     })
 
@@ -95,7 +95,7 @@ describe("Validation", () => {
 
     it("should handle Anthropic message with string content", () => {
       const body = {
-        model: "claude-3-5-sonnet-20241022",
+        model: "claude-sonnet-5-5",
         max_tokens: 1024,
         messages: [
           { role: "user", content: "Simple string" },
@@ -108,7 +108,7 @@ describe("Validation", () => {
 
     it("should handle Anthropic message with mixed content array", () => {
       const body = {
-        model: "claude-3-5-sonnet-20241022",
+        model: "claude-sonnet-5-5",
         max_tokens: 1024,
         messages: [
           {
@@ -187,7 +187,7 @@ describe("Validation", () => {
 
     it("should handle Anthropic tool with minimal definition", () => {
       const body = {
-        model: "claude-3-5-sonnet-20241022",
+        model: "claude-sonnet-5-5",
         max_tokens: 1024,
         messages: [{ role: "user", content: "Hello" }],
         tools: [
@@ -220,7 +220,7 @@ describe("Validation", () => {
 
     it("should handle auto tool_choice for Anthropic", () => {
       const body = {
-        model: "claude-3-5-sonnet-20241022",
+        model: "claude-sonnet-5-5",
         max_tokens: 1024,
         messages: [{ role: "user", content: "Hello" }],
         tool_choice: "auto",
@@ -258,7 +258,7 @@ describe("Validation", () => {
 
     it("should handle Anthropic body with undefined messages", () => {
       const body = {
-        model: "claude-3-5-sonnet-20241022",
+        model: "claude-sonnet-5-5",
         max_tokens: 1024,
       } as any
       const result = anthropicToUniversal(body)
@@ -268,7 +268,7 @@ describe("Validation", () => {
 
     it("should handle Anthropic body with null messages", () => {
       const body = {
-        model: "claude-3-5-sonnet-20241022",
+        model: "claude-sonnet-5-5",
         max_tokens: 1024,
         messages: null,
       } as any
@@ -297,7 +297,7 @@ describe("Validation", () => {
 
     it("should handle non-array messages for Anthropic", () => {
       const body = {
-        model: "claude-3-5-sonnet-20241022",
+        model: "claude-sonnet-5-5",
         max_tokens: 1024,
         messages: 42,
       } as any
@@ -322,7 +322,7 @@ describe("Validation", () => {
 
       // Anthropic
       const anthropicResult = toUniversal("anthropic", {
-        model: "claude-3-5-sonnet-20241022",
+        model: "claude-sonnet-5-5",
         max_tokens: 1024,
       } as any)
       expect(anthropicResult.messages).toEqual([])

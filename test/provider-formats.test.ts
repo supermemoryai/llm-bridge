@@ -109,7 +109,7 @@ describe("Provider Format Conversions", () => {
   describe("Anthropic Format", () => {
     it("should convert Anthropic request to universal format", () => {
       const anthropicRequest = {
-        model: "claude-3-sonnet-20240229",
+        model: "claude-sonnet-5-5",
         messages: [
           { role: "user", content: "Hello Claude" }
         ],
@@ -121,7 +121,7 @@ describe("Provider Format Conversions", () => {
       const universal = toUniversal("anthropic", anthropicRequest)
       
       expect(universal.provider).toBe("anthropic")
-      expect(universal.model).toBe("claude-3-sonnet-20240229")
+      expect(universal.model).toBe("claude-sonnet-5-5")
       expect(universal.system).toBe("You are Claude")
       expect(universal.messages).toHaveLength(1)
       expect(universal.messages[0].role).toBe("user")
@@ -132,7 +132,7 @@ describe("Provider Format Conversions", () => {
 
     it("should handle Anthropic multimodal content", () => {
       const anthropicRequest = {
-        model: "claude-3-sonnet-20240229",
+        model: "claude-sonnet-5-5",
         messages: [
           {
             role: "user",
@@ -161,7 +161,7 @@ describe("Provider Format Conversions", () => {
 
     it("should handle Anthropic tool use", () => {
       const anthropicRequest = {
-        model: "claude-3-sonnet-20240229",
+        model: "claude-sonnet-5-5",
         messages: [
           {
             role: "assistant",
@@ -189,7 +189,7 @@ describe("Provider Format Conversions", () => {
     it("should convert universal back to Anthropic format", () => {
       const universal: UniversalBody = {
         provider: "anthropic",
-        model: "claude-3-sonnet-20240229",
+        model: "claude-sonnet-5-5",
         messages: [
           {
             id: "msg-1",
@@ -205,7 +205,7 @@ describe("Provider Format Conversions", () => {
 
       const anthropicRequest = fromUniversal("anthropic", universal)
       
-      expect(anthropicRequest.model).toBe("claude-3-sonnet-20240229")
+      expect(anthropicRequest.model).toBe("claude-sonnet-5-5")
       expect(anthropicRequest.system).toBe("You are helpful")
       expect(anthropicRequest.messages).toHaveLength(1)
       expect(anthropicRequest.messages[0].role).toBe("user")
@@ -337,7 +337,7 @@ describe("Provider Format Conversions", () => {
 
     it("should handle Anthropic to Google conversion", () => {
       const anthropicRequest = {
-        model: "claude-3-sonnet-20240229",
+        model: "claude-sonnet-5-5",
         messages: [
           { role: "user", content: "Hello Claude" }
         ],

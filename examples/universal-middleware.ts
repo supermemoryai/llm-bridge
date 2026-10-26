@@ -110,7 +110,7 @@ function demonstrateTranslations() {
 
   // Anthropic -> Google
   const anthropicBody = {
-    model: "claude-sonnet-4-20250514",
+    model: "claude-sonnet-5-5",
     system: "You are a helpful assistant",
     messages: [{ role: "user", content: "Explain machine learning briefly" }],
     max_tokens: 100,

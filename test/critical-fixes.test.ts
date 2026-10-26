@@ -78,7 +78,7 @@ describe("PR Fix #1: Anthropic thinking signature (named fix)", () => {
   const SIGNATURE = "WaUjzkypQ2mUEVM36O2TxuC06KN8xEegnoOrpBVzqnK3HVGkSb3dNFPJUVK"
 
   const anthropicBodyWithSignature = {
-    model: "claude-sonnet-4-20250514",
+    model: "claude-sonnet-5-5",
     max_tokens: 16000,
     messages: [
       { role: "user" as const, content: "Solve a hard problem." },
@@ -132,7 +132,7 @@ describe("PR Fix #1: Anthropic thinking signature (named fix)", () => {
 
   it("toUniversal: thinking block WITHOUT signature still works (no regression)", () => {
     const bodyWithoutSig = {
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-5-5",
       max_tokens: 16000,
       messages: [
         { role: "user" as const, content: "Question." },
@@ -172,7 +172,7 @@ describe("PR Fix #1b: Cross-provider thinking signature (slow path, _original no
     // The slow path at anthropic-format/index.ts lines 281-286 must emit signature.
     const crossProviderUniversal = {
       provider: "anthropic" as const,
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-5-5",
       max_tokens: 16000,
       messages: [
         {
@@ -224,7 +224,7 @@ describe("PR Fix #1b: Cross-provider thinking signature (slow path, _original no
   it("no signature on cross-provider thinking block → signature absent (not null)", () => {
     const crossProviderUniversal = {
       provider: "anthropic" as const,
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-5-5",
       max_tokens: 16000,
       messages: [
         {
@@ -436,7 +436,7 @@ describe("PR Fix #2b: Responses API emitter — tool call SSE events", () => {
 describe("PR Fix #3: Anthropic emitter — sequential tool call block indices", () => {
   it("assigns index=0 to first tool and index=1 to second tool", async () => {
     const events: UniversalStreamEvent[] = [
-      { type: "message_start", id: "msg_seq", model: "claude-sonnet-4-20250514" },
+      { type: "message_start", id: "msg_seq", model: "claude-sonnet-5-5" },
       { type: "tool_call_start", tool_call: { id: "call_1", name: "get_weather" } },
       { type: "tool_call_delta", tool_call: { id: "call_1", arguments_delta: '{"city":"SF"}' } },
       { type: "tool_call_end", tool_call: { id: "call_1" } },
@@ -483,7 +483,7 @@ describe("PR Fix #3: Anthropic emitter — sequential tool call block indices", 
 describe("PR Fix #4: Anthropic emitter — thinking→text block index transitions", () => {
   it("thinking occupies index=0, subsequent text block occupies index=1", async () => {
     const events: UniversalStreamEvent[] = [
-      { type: "message_start", id: "msg_think", model: "claude-sonnet-4-20250514" },
+      { type: "message_start", id: "msg_think", model: "claude-sonnet-5-5" },
       { type: "content_delta", delta: { thinking: "Let me think..." } },
       { type: "content_delta", delta: { thinking: " carefully." } },
       { type: "content_delta", delta: { text: "The answer is 42." } },
@@ -517,7 +517,7 @@ describe("PR Fix #4: Anthropic emitter — thinking→text block index transitio
 
   it("multiple consecutive thinking deltas stay in a single thinking block (no duplicate block_start)", async () => {
     const events: UniversalStreamEvent[] = [
-      { type: "message_start", id: "msg_t2", model: "claude-sonnet-4-20250514" },
+      { type: "message_start", id: "msg_t2", model: "claude-sonnet-5-5" },
       { type: "content_delta", delta: { thinking: "Step 1..." } },
       { type: "content_delta", delta: { thinking: " Step 2..." } },
       { type: "content_delta", delta: { thinking: " Step 3." } },

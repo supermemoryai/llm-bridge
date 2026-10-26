@@ -36,7 +36,7 @@ const PROVIDERS: Record<
     name: "Anthropic (Claude Sonnet 4)",
     key: process.env.ANTHROPIC_API_KEY,
     baseUrl: "https://api.anthropic.com",
-    model: "claude-sonnet-4-20250514",
+    model: "claude-sonnet-5-5",
     streamPath: "/v1/messages",
   },
   google: {

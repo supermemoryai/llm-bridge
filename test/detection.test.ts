@@ -78,7 +78,7 @@ describe("Provider Detection", () => {
     it("should detect anthropic from anthropic_version field", () => {
       const body = {
         anthropic_version: "2023-06-01",
-        model: "claude-3-opus-20240229",
+        model: "claude-opus-4-8",
         max_tokens: 1000,
         messages: [{ role: "user", content: "Hello" }],
       }
@@ -148,7 +148,7 @@ describe("Provider Detection", () => {
     it("should detect anthropic for ambiguous body with system string + messages without contents", () => {
       // system (string) + messages + no contents → anthropic
       const body = {
-        model: "claude-3-sonnet-20240229",
+        model: "claude-sonnet-5-5",
         system: "You are a helpful assistant",
         messages: [{ role: "user", content: "Hello" }],
         max_tokens: 1000,

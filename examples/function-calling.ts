@@ -119,7 +119,7 @@ console.log(JSON.stringify(googleFormat, null, 2))
 console.log("\nExample 4: Anthropic -> OpenAI Translation")
 
 const anthropicToolRequest = {
-  model: "claude-sonnet-4-20250514",
+  model: "claude-sonnet-5-5",
   max_tokens: 1000,
   messages: [
     {

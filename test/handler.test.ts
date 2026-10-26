@@ -47,7 +47,7 @@ describe("handleUniversalRequest", () => {
     const result = await handleUniversalRequest(
       "https://api.anthropic.com/v1/messages",
       { 
-        model: "claude-3-sonnet-20240229",
+        model: "claude-sonnet-5-5",
         messages: [{ role: "user", content: "Hello" }],
         max_tokens: 100
       },
@@ -58,7 +58,7 @@ describe("handleUniversalRequest", () => {
 
     expect(result.response).toBeDefined()
     expect(result.observabilityData?.provider).toBe("anthropic")
-    expect(result.observabilityData?.model).toBe("claude-3-sonnet-20240229")
+    expect(result.observabilityData?.model).toBe("claude-sonnet-5-5")
   })
 
   it("should handle Google request", async () => {
