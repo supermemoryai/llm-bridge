@@ -874,7 +874,7 @@ describe("Streaming Round-trip", () => {
 
   it("should handle Anthropic emitter with multiple thinking deltas in one block", async () => {
     const universalEvents: UniversalStreamEvent[] = [
-      { type: "message_start", id: "msg_1", model: "claude-sonnet-4-20250514" },
+      { type: "message_start", id: "msg_1", model: "claude-sonnet-5-5" },
       { type: "content_delta", delta: { thinking: "Let me think" } },
       { type: "content_delta", delta: { thinking: " about this" } },
       { type: "content_delta", delta: { thinking: " carefully." } },
@@ -900,7 +900,7 @@ describe("Streaming Round-trip", () => {
 
   it("should handle Anthropic emitter with sequential tool calls", async () => {
     const universalEvents: UniversalStreamEvent[] = [
-      { type: "message_start", id: "msg_1", model: "claude-sonnet-4-20250514" },
+      { type: "message_start", id: "msg_1", model: "claude-sonnet-5-5" },
       { type: "tool_call_start", tool_call: { id: "call_1", name: "get_weather" } },
       { type: "tool_call_delta", tool_call: { id: "call_1", arguments_delta: '{"loc":"SF"}' } },
       { type: "tool_call_end", tool_call: { id: "call_1" } },

@@ -29,7 +29,7 @@ class UniversalLLMLoadBalancer {
       latency: 800, errorRate: 2, costMultiplier: 1.0, maxConcurrency: 10, currentRequests: 0,
     })
     this.providers.set("anthropic", {
-      name: "anthropic", model: "claude-sonnet-4-20250514", isHealthy: true,
+      name: "anthropic", model: "claude-sonnet-5-5", isHealthy: true,
       latency: 1200, errorRate: 1, costMultiplier: 1.2, maxConcurrency: 8, currentRequests: 0,
     })
     this.providers.set("google", {

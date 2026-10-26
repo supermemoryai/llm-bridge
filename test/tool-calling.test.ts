@@ -182,7 +182,7 @@ describe("Tool Calling", () => {
   describe("Anthropic: tool_use and tool_result lifecycle", () => {
     it("should convert Anthropic tool_use block to universal format", () => {
       const anthropicBody = {
-        model: "claude-3-5-sonnet-20241022",
+        model: "claude-sonnet-5-5",
         max_tokens: 1024,
         messages: [
           { role: "user", content: "What's the weather?" },
@@ -274,7 +274,7 @@ describe("Tool Calling", () => {
 
     it("should build continuation for Anthropic", async () => {
       const originalBody = {
-        model: "claude-3-5-sonnet-20241022",
+        model: "claude-sonnet-5-5",
         max_tokens: 1024,
         messages: [
           { role: "user", content: "What is the weather?" },

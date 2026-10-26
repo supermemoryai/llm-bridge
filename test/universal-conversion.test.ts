@@ -141,7 +141,7 @@ describe("Universal Format Conversion", () => {
   describe("Anthropic to Universal", () => {
     test("should convert basic Anthropic request", () => {
       const anthropicBody = {
-        model: "claude-3-opus-20240229",
+        model: "claude-opus-4-8",
         system: "You are a helpful assistant",
         messages: [
           { role: "user", content: "Hello Claude!" },
@@ -154,7 +154,7 @@ describe("Universal Format Conversion", () => {
       const universal = toUniversal("anthropic", anthropicBody as AnthropicBody)
 
       expect(universal.provider).toBe("anthropic")
-      expect(universal.model).toBe("claude-3-opus-20240229")
+      expect(universal.model).toBe("claude-opus-4-8")
       expect(universal.system).toBe("You are a helpful assistant")
       expect(universal.max_tokens).toBe(1000)
       expect(universal.temperature).toBe(0.7)
@@ -163,7 +163,7 @@ describe("Universal Format Conversion", () => {
 
     test("should handle Anthropic multimodal content", () => {
       const anthropicBody = {
-        model: "claude-3-opus-20240229",
+        model: "claude-opus-4-8",
         messages: [
           {
             role: "user",
@@ -197,7 +197,7 @@ describe("Universal Format Conversion", () => {
 
     test("should handle cache control", () => {
       const anthropicBody = {
-        model: "claude-3-opus-20240229",
+        model: "claude-opus-4-8",
         system: [
           {
             type: "text",

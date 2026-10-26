@@ -94,7 +94,7 @@ class UniversalImageAnalyzer {
   private getModelForProvider(provider: ProviderType): string {
     const models: Record<string, string> = {
       openai: "gpt-4o",
-      anthropic: "claude-sonnet-4-20250514",
+      anthropic: "claude-sonnet-5-5",
       google: "gemini-2.5-pro",
     }
     return models[provider] || "gpt-4o"

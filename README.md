@@ -116,7 +116,7 @@ const outputStream = handleUniversalStreamRequest(
 ```typescript
 // Anthropic extended thinking
 const anthropicRequest = {
-  model: "claude-sonnet-4-20250514",
+  model: "claude-sonnet-5-5",
   max_tokens: 16000,
   thinking: { type: "enabled", budget_tokens: 10000 },
   messages: [{ role: "user", content: "Solve this complex problem..." }]

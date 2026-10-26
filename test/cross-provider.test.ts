@@ -59,7 +59,7 @@ describe("Cross-provider conversions", () => {
   describe("Anthropic → OpenAI", () => {
     it("should convert Anthropic text messages to OpenAI format", () => {
       const anthropicBody = {
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-5-5",
         max_tokens: 1024,
         system: "You are a pirate.",
         messages: [
@@ -87,7 +87,7 @@ describe("Cross-provider conversions", () => {
   describe("Anthropic → Google", () => {
     it("should convert Anthropic text messages to Google format", () => {
       const anthropicBody = {
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-5-5",
         max_tokens: 1024,
         system: "You are helpful.",
         messages: [
@@ -270,7 +270,7 @@ describe("Cross-provider conversions", () => {
 
     it("should convert Anthropic tools through universal to Google format", () => {
       const anthropicBody = {
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-5-5",
         max_tokens: 1024,
         messages: [
           { role: "user" as const, content: "Search for info" },
@@ -421,7 +421,7 @@ describe("Cross-provider conversions", () => {
 
     it("should convert Anthropic base64 image to Google inlineData", () => {
       const anthropicBody = {
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-5-5",
         max_tokens: 1024,
         messages: [
           {

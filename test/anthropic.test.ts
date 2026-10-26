@@ -5,7 +5,7 @@ describe("Anthropic format conversion", () => {
   describe("basic text messages", () => {
     it("should convert user text message to universal", () => {
       const body = {
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-5-5",
         max_tokens: 1024,
         messages: [
           { role: "user" as const, content: "Hello, Claude!" },
@@ -15,7 +15,7 @@ describe("Anthropic format conversion", () => {
       const universal = toUniversal("anthropic", body)
 
       expect(universal.provider).toBe("anthropic")
-      expect(universal.model).toBe("claude-sonnet-4-20250514")
+      expect(universal.model).toBe("claude-sonnet-5-5")
       expect(universal.max_tokens).toBe(1024)
       expect(universal.messages).toHaveLength(1)
       expect(universal.messages[0].role).toBe("user")
@@ -26,7 +26,7 @@ describe("Anthropic format conversion", () => {
 
     it("should convert user and assistant messages to universal", () => {
       const body = {
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-5-5",
         max_tokens: 1024,
         messages: [
           { role: "user" as const, content: "What is 2+2?" },
@@ -48,7 +48,7 @@ describe("Anthropic format conversion", () => {
 
     it("should convert array content blocks to universal", () => {
       const body = {
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-5-5",
         max_tokens: 1024,
         messages: [
           {
@@ -71,7 +71,7 @@ describe("Anthropic format conversion", () => {
   describe("system message", () => {
     it("should convert string system prompt to universal", () => {
       const body = {
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-5-5",
         max_tokens: 1024,
         system: "You are a helpful assistant who speaks French.",
         messages: [
@@ -86,7 +86,7 @@ describe("Anthropic format conversion", () => {
 
     it("should convert array system prompt to universal", () => {
       const body = {
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-5-5",
         max_tokens: 1024,
         system: [
           { type: "text" as const, text: "You are a helpful assistant." },
@@ -104,7 +104,7 @@ describe("Anthropic format conversion", () => {
 
     it("should convert array system prompt with cache_control to universal", () => {
       const body = {
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-5-5",
         max_tokens: 1024,
         system: [
           {
@@ -131,7 +131,7 @@ describe("Anthropic format conversion", () => {
   describe("images", () => {
     it("should convert base64 image source to universal", () => {
       const body = {
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-5-5",
         max_tokens: 1024,
         messages: [
           {
@@ -165,7 +165,7 @@ describe("Anthropic format conversion", () => {
 
     it("should convert URL image source to universal", () => {
       const body = {
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-5-5",
         max_tokens: 1024,
         messages: [
           {
@@ -197,7 +197,7 @@ describe("Anthropic format conversion", () => {
   describe("tool definitions and tool_choice", () => {
     it("should convert tool definitions with input_schema to universal", () => {
       const body = {
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-5-5",
         max_tokens: 1024,
         messages: [
           { role: "user" as const, content: "What's the weather in Paris?" },
@@ -228,7 +228,7 @@ describe("Anthropic format conversion", () => {
 
     it("should convert tool_choice 'auto' to universal", () => {
       const body = {
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-5-5",
         max_tokens: 1024,
         messages: [
           { role: "user" as const, content: "Hello" },
@@ -250,7 +250,7 @@ describe("Anthropic format conversion", () => {
 
     it("should convert tool_choice 'any' to universal", () => {
       const body = {
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-5-5",
         max_tokens: 1024,
         messages: [
           { role: "user" as const, content: "Hello" },
@@ -274,7 +274,7 @@ describe("Anthropic format conversion", () => {
   describe("tool use blocks", () => {
     it("should convert assistant tool_use content blocks to universal", () => {
       const body = {
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-5-5",
         max_tokens: 1024,
         messages: [
           { role: "user" as const, content: "What's the weather?" },
@@ -314,7 +314,7 @@ describe("Anthropic format conversion", () => {
   describe("tool result blocks", () => {
     it("should convert tool_result to universal", () => {
       const body = {
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-5-5",
         max_tokens: 1024,
         messages: [
           {
@@ -341,7 +341,7 @@ describe("Anthropic format conversion", () => {
 
     it("should convert tool_result with is_error to universal", () => {
       const body = {
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-5-5",
         max_tokens: 1024,
         messages: [
           {
@@ -370,7 +370,7 @@ describe("Anthropic format conversion", () => {
   describe("extended thinking", () => {
     it("should convert thinking param in request to universal thinking config", () => {
       const body = {
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-5-5",
         max_tokens: 16000,
         thinking: {
           type: "enabled",
@@ -390,7 +390,7 @@ describe("Anthropic format conversion", () => {
 
     it("should convert thinking content block to universal (with signature)", () => {
       const body = {
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-5-5",
         max_tokens: 16000,
         messages: [
           { role: "user" as const, content: "Solve this." },
@@ -428,7 +428,7 @@ describe("Anthropic format conversion", () => {
 
     it("should convert redacted_thinking content block to universal", () => {
       const body = {
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-5-5",
         max_tokens: 16000,
         messages: [
           { role: "user" as const, content: "Explain." },
@@ -465,7 +465,7 @@ describe("Anthropic format conversion", () => {
   describe("cache_control on content blocks", () => {
     it("should detect cache_control on content blocks and preserve in metadata", () => {
       const body = {
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-5-5",
         max_tokens: 1024,
         messages: [
           {
@@ -488,7 +488,7 @@ describe("Anthropic format conversion", () => {
 
     it("should not set cache_control when not present", () => {
       const body = {
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-5-5",
         max_tokens: 1024,
         messages: [
           {
@@ -509,7 +509,7 @@ describe("Anthropic format conversion", () => {
   describe("provider params", () => {
     it("should preserve temperature, top_p, and stream", () => {
       const body = {
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-5-5",
         max_tokens: 2048,
         temperature: 0.7,
         top_p: 0.9,
@@ -528,7 +528,7 @@ describe("Anthropic format conversion", () => {
 
     it("should preserve stop_sequences in provider_params", () => {
       const body = {
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-5-5",
         max_tokens: 1024,
         stop_sequences: ["\n\nHuman:", "\n\nAssistant:"],
         messages: [
@@ -545,7 +545,7 @@ describe("Anthropic format conversion", () => {
   describe("round-trip: anthropic → universal → anthropic", () => {
     it("should round-trip basic text messages", () => {
       const original = {
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-5-5",
         max_tokens: 1024,
         messages: [
           { role: "user" as const, content: "Hello, Claude!" },
@@ -565,7 +565,7 @@ describe("Anthropic format conversion", () => {
 
     it("should round-trip system prompt", () => {
       const original = {
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-5-5",
         max_tokens: 1024,
         system: "You are a pirate.",
         messages: [
@@ -581,7 +581,7 @@ describe("Anthropic format conversion", () => {
 
     it("should round-trip tools", () => {
       const original = {
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-5-5",
         max_tokens: 1024,
         messages: [
           { role: "user" as const, content: "Get weather" },
@@ -610,7 +610,7 @@ describe("Anthropic format conversion", () => {
 
     it("should round-trip thinking config", () => {
       const original = {
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-5-5",
         max_tokens: 16000,
         thinking: {
           type: "enabled",
@@ -634,7 +634,7 @@ describe("Anthropic format conversion", () => {
       // included a thinking block with a signature. The signature MUST be preserved
       // for Anthropic to accept the request.
       const original = {
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-5-5",
         max_tokens: 16000,
         thinking: { type: "enabled", budget_tokens: 10000 },
         messages: [
@@ -685,7 +685,7 @@ describe("Anthropic format conversion", () => {
       // The signature should still be preserved if it exists on the universal content.
       const universal: any = {
         provider: "anthropic",
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-5-5",
         max_tokens: 16000,
         messages: [
           {
@@ -731,7 +731,7 @@ describe("Anthropic format conversion", () => {
 
     it("should round-trip temperature and stop_sequences", () => {
       const original = {
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-5-5",
         max_tokens: 1024,
         temperature: 0.5,
         top_p: 0.95,
@@ -753,7 +753,7 @@ describe("Anthropic format conversion", () => {
   describe("fromUniversal: anthropic output", () => {
     it("should convert universal tool_choice string to Anthropic object format", () => {
       const body = {
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-5-5",
         max_tokens: 1024,
         messages: [
           { role: "user" as const, content: "Hello" },
@@ -786,7 +786,7 @@ describe("Anthropic format conversion", () => {
     it("should convert universal tool_choice with name to Anthropic specific tool format", () => {
       const universal = {
         provider: "anthropic" as const,
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-5-5",
         max_tokens: 1024,
         messages: [
           {
@@ -814,7 +814,7 @@ describe("Anthropic format conversion", () => {
     it("should convert universal image content to Anthropic base64 format", () => {
       const universal = {
         provider: "anthropic" as const,
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-5-5",
         max_tokens: 1024,
         messages: [
           {
@@ -846,7 +846,7 @@ describe("Anthropic format conversion", () => {
     it("should convert universal URL image content to Anthropic URL format", () => {
       const universal = {
         provider: "anthropic" as const,
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-5-5",
         max_tokens: 1024,
         messages: [
           {
@@ -876,7 +876,7 @@ describe("Anthropic format conversion", () => {
     it("should convert universal thinking content back to Anthropic format", () => {
       const universal = {
         provider: "anthropic" as const,
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-5-5",
         max_tokens: 16000,
         messages: [
           {
@@ -902,7 +902,7 @@ describe("Anthropic format conversion", () => {
     it("should convert universal redacted_thinking back to Anthropic format", () => {
       const universal = {
         provider: "anthropic" as const,
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-5-5",
         max_tokens: 16000,
         messages: [
           {
@@ -927,7 +927,7 @@ describe("Anthropic format conversion", () => {
     it("should convert universal tool_result with is_error back to Anthropic", () => {
       const universal = {
         provider: "anthropic" as const,
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-5-5",
         max_tokens: 1024,
         messages: [
           {

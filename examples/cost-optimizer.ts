@@ -36,8 +36,8 @@ class LLMCostOptimizer {
     { provider: "openai", model: "gpt-4o", capability: "advanced", costMultiplier: 1.0, speedScore: 7, qualityScore: 9 },
     { provider: "openai", model: "o1-preview", capability: "reasoning", costMultiplier: 3.0, speedScore: 3, qualityScore: 10 },
     { provider: "anthropic", model: "claude-haiku-4-5-20251001", capability: "basic", costMultiplier: 0.08, speedScore: 10, qualityScore: 6 },
-    { provider: "anthropic", model: "claude-sonnet-4-20250514", capability: "advanced", costMultiplier: 0.5, speedScore: 8, qualityScore: 8 },
-    { provider: "anthropic", model: "claude-opus-4-20250514", capability: "advanced", costMultiplier: 2.0, speedScore: 5, qualityScore: 10 },
+    { provider: "anthropic", model: "claude-sonnet-5-5", capability: "advanced", costMultiplier: 0.5, speedScore: 8, qualityScore: 8 },
+    { provider: "anthropic", model: "claude-opus-4-8", capability: "advanced", costMultiplier: 2.0, speedScore: 5, qualityScore: 10 },
     { provider: "google", model: "gemini-2.0-flash", capability: "basic", costMultiplier: 0.05, speedScore: 10, qualityScore: 6 },
     { provider: "google", model: "gemini-2.5-pro", capability: "advanced", costMultiplier: 0.3, speedScore: 8, qualityScore: 8 },
   ]

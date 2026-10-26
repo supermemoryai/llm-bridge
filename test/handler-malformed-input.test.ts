@@ -19,14 +19,14 @@ describe('Handler with Malformed Input', () => {
   describe('Anthropic Malformed Input Handling', () => {
     it('should handle anthropic request with undefined messages without throwing', async () => {
       const malformedBody = {
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-sonnet-5-5',
         max_tokens: 1024,
         // messages is undefined - this previously caused the error
       }
 
       const mockEditFunction = vi.fn().mockResolvedValue({
         request: {
-          model: 'claude-3-5-sonnet-20241022',
+          model: 'claude-sonnet-5-5',
           messages: [],
           provider: 'anthropic',
           max_tokens: 1024,
@@ -66,14 +66,14 @@ describe('Handler with Malformed Input', () => {
 
     it('should handle anthropic request with null messages', async () => {
       const malformedBody = {
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-sonnet-5-5',
         max_tokens: 1024,
         messages: null,
       }
 
       const mockEditFunction = vi.fn().mockResolvedValue({
         request: {
-          model: 'claude-3-5-sonnet-20241022',
+          model: 'claude-sonnet-5-5',
           messages: [],
           provider: 'anthropic',
           max_tokens: 1024,
@@ -99,14 +99,14 @@ describe('Handler with Malformed Input', () => {
 
     it('should handle anthropic request with non-array messages', async () => {
       const malformedBody = {
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-sonnet-5-5',
         max_tokens: 1024,
         messages: 'not an array',
       }
 
       const mockEditFunction = vi.fn().mockResolvedValue({
         request: {
-          model: 'claude-3-5-sonnet-20241022',
+          model: 'claude-sonnet-5-5',
           messages: [],
           provider: 'anthropic',
           max_tokens: 1024,
@@ -261,7 +261,7 @@ describe('Handler with Malformed Input', () => {
   describe('Error Propagation and Recovery', () => {
     it('should allow edit function to handle malformed data gracefully', async () => {
       const malformedBody = {
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-sonnet-5-5',
         max_tokens: 1024,
         // messages is undefined
       }
@@ -312,13 +312,13 @@ describe('Handler with Malformed Input', () => {
 
     it('should preserve observability data even with malformed input', async () => {
       const malformedBody = {
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-sonnet-5-5',
         // missing max_tokens and messages
       }
 
       const mockEditFunction = vi.fn().mockResolvedValue({
         request: {
-          model: 'claude-3-5-sonnet-20241022',
+          model: 'claude-sonnet-5-5',
           messages: [],
           provider: 'anthropic',
           max_tokens: 1024,
@@ -348,7 +348,7 @@ describe('Handler with Malformed Input', () => {
       // This simulates the exact scenario that was causing the error:
       // "Cannot read properties of undefined (reading 'map')"
       const problematicBody = {
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-sonnet-5-5',
         max_tokens: 1024,
         temperature: 0.7,
         // messages property is missing/undefined
@@ -356,7 +356,7 @@ describe('Handler with Malformed Input', () => {
 
       const mockEditFunction = vi.fn().mockResolvedValue({
         request: {
-          model: 'claude-3-5-sonnet-20241022',
+          model: 'claude-sonnet-5-5',
           messages: [],
           provider: 'anthropic',
           max_tokens: 1024,
@@ -394,13 +394,13 @@ describe('Handler with Malformed Input', () => {
 
     it('should handle mixed malformed data scenarios', async () => {
       const scenarios = [
-        { model: 'claude-3-5-sonnet-20241022', messages: undefined },
-        { model: 'claude-3-5-sonnet-20241022', messages: null },
-        { model: 'claude-3-5-sonnet-20241022', messages: 'string' },
-        { model: 'claude-3-5-sonnet-20241022', messages: 123 },
-        { model: 'claude-3-5-sonnet-20241022', messages: {} },
-        { model: 'claude-3-5-sonnet-20241022', messages: true },
-        { model: 'claude-3-5-sonnet-20241022' }, // no messages
+        { model: 'claude-sonnet-5-5', messages: undefined },
+        { model: 'claude-sonnet-5-5', messages: null },
+        { model: 'claude-sonnet-5-5', messages: 'string' },
+        { model: 'claude-sonnet-5-5', messages: 123 },
+        { model: 'claude-sonnet-5-5', messages: {} },
+        { model: 'claude-sonnet-5-5', messages: true },
+        { model: 'claude-sonnet-5-5' }, // no messages
         {}, // completely empty
       ]
 

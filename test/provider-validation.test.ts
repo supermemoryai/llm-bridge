@@ -8,7 +8,7 @@ describe('Provider Format Input Validation', () => {
   describe('Anthropic Format Validation', () => {
     it('should handle undefined messages', () => {
       const malformedBody = {
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-sonnet-5-5',
         max_tokens: 1024,
         // messages is undefined
       } as any
@@ -17,7 +17,7 @@ describe('Provider Format Input Validation', () => {
       
       expect(result).toBeDefined()
       expect(result.provider).toBe('anthropic')
-      expect(result.model).toBe('claude-3-5-sonnet-20241022')
+      expect(result.model).toBe('claude-sonnet-5-5')
       expect(result.messages).toEqual([])
       expect(result.max_tokens).toBe(1024)
       expect(result._original).toEqual({ provider: 'anthropic', raw: malformedBody })
@@ -25,7 +25,7 @@ describe('Provider Format Input Validation', () => {
 
     it('should handle null messages', () => {
       const malformedBody = {
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-sonnet-5-5',
         max_tokens: 1024,
         messages: null,
       } as any
@@ -34,14 +34,14 @@ describe('Provider Format Input Validation', () => {
       
       expect(result).toBeDefined()
       expect(result.provider).toBe('anthropic')
-      expect(result.model).toBe('claude-3-5-sonnet-20241022')
+      expect(result.model).toBe('claude-sonnet-5-5')
       expect(result.messages).toEqual([])
       expect(result.max_tokens).toBe(1024)
     })
 
     it('should handle non-array messages', () => {
       const malformedBody = {
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-sonnet-5-5',
         max_tokens: 1024,
         messages: 'not an array',
       } as any
@@ -50,14 +50,14 @@ describe('Provider Format Input Validation', () => {
       
       expect(result).toBeDefined()
       expect(result.provider).toBe('anthropic')
-      expect(result.model).toBe('claude-3-5-sonnet-20241022')
+      expect(result.model).toBe('claude-sonnet-5-5')
       expect(result.messages).toEqual([])
       expect(result.max_tokens).toBe(1024)
     })
 
     it('should handle object instead of array for messages', () => {
       const malformedBody = {
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-sonnet-5-5',
         max_tokens: 1024,
         messages: { role: 'user', content: 'hello' },
       } as any
@@ -71,7 +71,7 @@ describe('Provider Format Input Validation', () => {
 
     it('should handle number instead of array for messages', () => {
       const malformedBody = {
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-sonnet-5-5',
         max_tokens: 1024,
         messages: 123,
       } as any
@@ -99,7 +99,7 @@ describe('Provider Format Input Validation', () => {
 
     it('should provide fallback when max_tokens is undefined', () => {
       const malformedBody = {
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-sonnet-5-5',
         // no max_tokens or messages
       } as any
 
@@ -123,7 +123,7 @@ describe('Provider Format Input Validation', () => {
 
     it('should process valid messages normally when present', () => {
       const validBody = {
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-sonnet-5-5',
         max_tokens: 1024,
         messages: [
           {
@@ -137,7 +137,7 @@ describe('Provider Format Input Validation', () => {
       
       expect(result).toBeDefined()
       expect(result.provider).toBe('anthropic')
-      expect(result.model).toBe('claude-3-5-sonnet-20241022')
+      expect(result.model).toBe('claude-sonnet-5-5')
       expect(result.messages).toHaveLength(1)
       expect(result.messages[0].role).toBe('user')
       expect(result.messages[0].content[0].text).toBe('Hello world')
@@ -215,7 +215,7 @@ describe('Provider Format Input Validation', () => {
   describe('toUniversal Integration Tests', () => {
     it('should handle malformed anthropic body through toUniversal', () => {
       const malformedBody = {
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-sonnet-5-5',
         max_tokens: 1024,
         // messages is undefined
       } as any
@@ -224,7 +224,7 @@ describe('Provider Format Input Validation', () => {
       
       expect(result).toBeDefined()
       expect(result.provider).toBe('anthropic')
-      expect(result.model).toBe('claude-3-5-sonnet-20241022')
+      expect(result.model).toBe('claude-sonnet-5-5')
       expect(result.messages).toEqual([])
     })
 
@@ -258,7 +258,7 @@ describe('Provider Format Input Validation', () => {
   describe('Edge Case Scenarios', () => {
     it('should handle anthropic body with messages as empty string', () => {
       const malformedBody = {
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-sonnet-5-5',
         max_tokens: 1024,
         messages: '',
       } as any
@@ -271,7 +271,7 @@ describe('Provider Format Input Validation', () => {
 
     it('should handle anthropic body with messages as boolean', () => {
       const malformedBody = {
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-sonnet-5-5',
         max_tokens: 1024,
         messages: true,
       } as any
@@ -284,7 +284,7 @@ describe('Provider Format Input Validation', () => {
 
     it('should handle anthropic body with messages as function', () => {
       const malformedBody = {
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-sonnet-5-5',
         max_tokens: 1024,
         messages: () => 'hello',
       } as any
@@ -297,7 +297,7 @@ describe('Provider Format Input Validation', () => {
 
     it('should handle anthropic body with circular reference', () => {
       const malformedBody: any = {
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-sonnet-5-5',
         max_tokens: 1024,
       }
       malformedBody.messages = malformedBody // circular reference
@@ -312,7 +312,7 @@ describe('Provider Format Input Validation', () => {
   describe('Backward Compatibility', () => {
     it('should not break existing valid anthropic requests', () => {
       const validBody = {
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-sonnet-5-5',
         max_tokens: 1024,
         messages: [
           {
@@ -332,7 +332,7 @@ describe('Provider Format Input Validation', () => {
       
       expect(result).toBeDefined()
       expect(result.provider).toBe('anthropic')
-      expect(result.model).toBe('claude-3-5-sonnet-20241022')
+      expect(result.model).toBe('claude-sonnet-5-5')
       expect(result.messages).toHaveLength(2)
       expect(result.messages[0].role).toBe('user')
       expect(result.messages[1].role).toBe('assistant')
